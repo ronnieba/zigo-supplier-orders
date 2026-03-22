@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { getSuppliers, getProducts, getCategories, type Supplier, type Product } from '../api'
-import { Package, Search, TrendingUp, TrendingDown, Minus, ChevronUp, ChevronDown, SlidersHorizontal, X } from 'lucide-react'
+import { getSuppliers, getProducts, getCategories, compareProducts, type Supplier, type Product, type ProductComparison } from '../api'
+import { Package, Search, TrendingUp, TrendingDown, Minus, ChevronUp, ChevronDown, SlidersHorizontal, X, GitCompare } from 'lucide-react'
 
 type SortKey = 'name' | 'price' | 'change'
 type SortDir = 'asc' | 'desc'
@@ -42,6 +42,10 @@ export default function Catalog() {
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [loading, setLoading] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
+  const [showCompare, setShowCompare] = useState(false)
+  const [compareSearch, setCompareSearch] = useState('')
+  const [compareResults, setCompareResults] = useState<ProductComparison[]>([])
+  const [compareLoading, setCompareLoading] = useState(false)
 
   useEffect(() => {
     getSuppliers().then(s => setSuppliers(s))
@@ -104,17 +108,44 @@ export default function Catalog() {
     setSupplierId(''); setCategory(''); setMinPrice(''); setMaxPrice(''); setSearch('')
   }
 
+  useEffect(() => {
+    if (!compareSearch.trim() || compareSearch.length < 2) {
+      setCompareResults([])
+      return
+    }
+    const timer = setTimeout(async () => {
+      setCompareLoading(true)
+      try {
+        const r = await compareProducts(compareSearch)
+        setCompareResults(r)
+      } finally {
+        setCompareLoading(false)
+      }
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [compareSearch])
+
   // Get supplier name for display in all-suppliers view
   const supplierMap = useMemo(() => Object.fromEntries(suppliers.map(s => [s.id, s.name])), [suppliers])
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <h2 className="text-2xl font-bold flex items-center gap-2 text-zigo-text">
           <Package size={24} className="text-zigo-green"/>קטלוג מוצרים
         </h2>
-        <button
-          onClick={() => setShowFilters(v => !v)}
+        <div className="flex gap-2">
+          <button
+            onClick={() => { setShowCompare(v => !v); setShowFilters(false) }}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors
+              ${showCompare
+                ? 'bg-zigo-green text-white border-zigo-green'
+                : 'border-zigo-border text-zigo-muted hover:border-zigo-green hover:text-zigo-green'}`}
+          >
+            <GitCompare size={15}/>השווה
+          </button>
+          <button
+            onClick={() => setShowFilters(v => !v)}
           className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors
             ${showFilters || hasActiveFilters
               ? 'bg-zigo-green text-white border-zigo-green'
@@ -124,7 +155,59 @@ export default function Catalog() {
           סינון
           {hasActiveFilters && <span className="bg-white text-zigo-green rounded-full w-4 h-4 text-xs flex items-center justify-center font-bold">!</span>}
         </button>
+        </div>
       </div>
+
+      {/* Compare panel */}
+      {showCompare && (
+        <div className="bg-zigo-card border border-zigo-border rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-zigo-text flex items-center gap-2">
+              <GitCompare size={16} className="text-zigo-green"/>השוואת מחירים בין ספקים
+            </h3>
+            <button onClick={() => setShowCompare(false)} className="text-zigo-muted hover:text-zigo-text">
+              <X size={16}/>
+            </button>
+          </div>
+          <div className="relative">
+            <Search size={15} className="absolute right-3 top-2.5 text-zigo-muted"/>
+            <input
+              className="w-full bg-zigo-bg border border-zigo-border rounded-lg pr-9 pl-3 py-2 text-sm text-zigo-text placeholder:text-zigo-muted focus:outline-none focus:border-zigo-green"
+              placeholder="הקלד שם מוצר לחיפוש (מינ׳ 2 תווים)..."
+              value={compareSearch}
+              onChange={e => setCompareSearch(e.target.value)}
+              autoFocus
+            />
+          </div>
+          {compareLoading && <p className="text-center text-zigo-muted text-sm py-2">מחפש...</p>}
+          {!compareLoading && compareSearch.length >= 2 && compareResults.length === 0 && (
+            <p className="text-center text-zigo-muted text-sm py-2">לא נמצאו מוצרים תואמים</p>
+          )}
+          {compareResults.map(group => (
+            <div key={group.name} className="border border-zigo-border rounded-lg overflow-hidden">
+              <div className="bg-zigo-bg px-3 py-2 font-medium text-zigo-text text-sm">{group.name}</div>
+              <div className="divide-y divide-zigo-border">
+                {group.matches.map(m => (
+                  <div key={m.product_id} className="flex items-center justify-between px-3 py-2 text-sm hover:bg-zigo-bg transition-colors">
+                    <span className="text-zigo-muted">{m.supplier_name}</span>
+                    <div className="flex items-center gap-2">
+                      {m.unit && <span className="text-xs text-zigo-muted">{m.unit}</span>}
+                      {m.price !== null ? (
+                        <span className={`font-bold ${m.price === group.min_price ? 'text-zigo-green' : 'text-zigo-text'}`}>
+                          ₪{m.price.toFixed(2)}
+                          {m.price === group.min_price && <span className="text-xs mr-1">✓ הזול</span>}
+                        </span>
+                      ) : (
+                        <span className="text-zigo-muted">אין מחיר</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Filters panel */}
       <div className={`bg-zigo-card border border-zigo-border rounded-xl p-4 space-y-3 transition-all ${showFilters ? '' : 'hidden'}`}>

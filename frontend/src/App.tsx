@@ -1,12 +1,14 @@
 import { Routes, Route, NavLink } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { LayoutDashboard, Package, ShoppingCart, History, BarChart2, Truck, Menu, X, Sun, Moon } from 'lucide-react'
+import { LayoutDashboard, Package, ShoppingCart, History, BarChart2, Truck, Menu, X, Sun, Moon, Calendar } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import Catalog from './pages/Catalog'
 import NewOrder from './pages/NewOrder'
 import OrderHistory from './pages/OrderHistory'
+import OrderPrint from './pages/OrderPrint'
 import Analytics from './pages/Analytics'
 import Suppliers from './pages/Suppliers'
+import CalendarPage from './pages/CalendarPage'
 import ZigoLogo from './ZigoLogo'
 
 const NAV = [
@@ -16,6 +18,7 @@ const NAV = [
   { to: '/order/new', icon: ShoppingCart, label: 'הזמנה חדשה' },
   { to: '/orders', icon: History, label: 'היסטוריה' },
   { to: '/analytics', icon: BarChart2, label: 'אנליטיקות' },
+  { to: '/calendar', icon: Calendar, label: 'לוח שנה' },
 ]
 
 export default function App() {
@@ -34,7 +37,7 @@ export default function App() {
       <div className="min-h-screen flex flex-col bg-zigo-bg text-zigo-text transition-colors duration-300">
 
         {/* Top bar */}
-        <header className="bg-zigo-header border-b border-zigo-border px-4 py-3 shadow-sm">
+        <header className="bg-zigo-header border-b border-zigo-border px-4 py-3 shadow-sm no-print">
           <div className="max-w-5xl mx-auto flex items-center justify-between">
             {/* Logo + Name */}
             <div className="flex items-center gap-3">
@@ -63,24 +66,22 @@ export default function App() {
           </div>
 
           {/* Desktop nav - circle buttons like Instagram highlights */}
-          <nav className="hidden md:flex justify-center gap-6 mt-3 pb-1">
+          <nav className="hidden md:flex justify-center gap-4 mt-3 pb-1">
             {NAV.map(({ to, icon: Icon, label }) => (
               <NavLink
                 key={to}
                 to={to}
                 end={to === '/'}
-                className={({ isActive }) =>
-                  `flex flex-col items-center gap-1 group transition-all`
-                }
+                className={() => `flex flex-col items-center gap-1 group transition-all`}
               >
                 {({ isActive }) => (
                   <>
-                    <div className={`w-14 h-14 rounded-full flex items-center justify-center border-2 transition-all
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all
                       ${isActive
                         ? 'bg-zigo-green border-zigo-green text-white shadow-md'
                         : 'bg-zigo-card border-zigo-border text-zigo-muted group-hover:border-zigo-green group-hover:text-zigo-green'
                       }`}>
-                      <Icon size={22} />
+                      <Icon size={20} />
                     </div>
                     <span className={`text-xs font-medium transition-colors
                       ${isActive ? 'text-zigo-green' : 'text-zigo-muted group-hover:text-zigo-green'}`}>
@@ -95,7 +96,7 @@ export default function App() {
 
         {/* Mobile menu */}
         {menuOpen && (
-          <nav className="md:hidden bg-zigo-header border-b border-zigo-border flex flex-col">
+          <nav className="md:hidden bg-zigo-header border-b border-zigo-border flex flex-col no-print">
             {NAV.map(({ to, icon: Icon, label }) => (
               <NavLink
                 key={to}
@@ -129,8 +130,10 @@ export default function App() {
             <Route path="/catalog" element={<Catalog />} />
             <Route path="/order/new" element={<NewOrder />} />
             <Route path="/orders" element={<OrderHistory />} />
+            <Route path="/orders/:orderId/print" element={<OrderPrint />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/suppliers" element={<Suppliers />} />
+            <Route path="/calendar" element={<CalendarPage />} />
           </Routes>
         </main>
       </div>

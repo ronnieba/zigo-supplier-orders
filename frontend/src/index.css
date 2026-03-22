@@ -33,3 +33,11 @@ body {
   color: var(--zigo-text);
   transition: background 0.3s, color 0.3s;
 }
+
+/* Print styles */
+@media print {
+  .no-print { display: none !important; }
+  header, nav { display: none !important; }
+  body { background: white !important; color: black !important; direction: rtl; }
+  .print-area { box-shadow: none !important; border: none !important; }
+}

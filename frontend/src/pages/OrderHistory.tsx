@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { getSuppliers, getOrders, deleteOrder, confirmOrder, type Supplier, type Order } from '../api'
-import { History, ChevronDown, ChevronUp, Trash2, CheckCircle } from 'lucide-react'
+import { History, ChevronDown, ChevronUp, Trash2, CheckCircle, MessageCircle, Printer } from 'lucide-react'
 
 export default function OrderHistory() {
+  const navigate = useNavigate()
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [supplierId, setSupplierId] = useState('')
   const [orders, setOrders] = useState<Order[]>([])
@@ -31,6 +33,24 @@ export default function OrderHistory() {
   async function confirm_(id: string) {
     await confirmOrder(id)
     load()
+  }
+
+  function sendWhatsApp(order: Order) {
+    const supplier = suppliers.find(s => s.id === order.supplier_id)
+    const supplierName = supplier?.name || 'ספק'
+    const phone = supplier?.contact?.replace(/\D/g, '') || ''
+
+    let text = `*הזמנה — ${supplierName}*\n`
+    text += `שבוע: ${order.week_start}\n\n`
+    for (const item of order.items) {
+      text += `• ${item.product_name}  ×${item.quantity}${item.product_unit ? ' ' + item.product_unit : ''}  ₪${item.total_price.toFixed(2)}\n`
+    }
+    text += `\n*סה"כ: ₪${order.total_cost?.toFixed(2)}*`
+    if (order.notes) text += `\n\nהערות: ${order.notes}`
+
+    const encoded = encodeURIComponent(text)
+    const url = phone ? `https://wa.me/${phone}?text=${encoded}` : `https://wa.me/?text=${encoded}`
+    window.open(url, '_blank')
   }
 
   return (
@@ -64,8 +84,8 @@ export default function OrderHistory() {
               <div className="flex items-center gap-3">
                 <span className={`text-xs px-2 py-1 rounded-full ${
                   order.status === 'confirmed'
-                    ? 'bg-green-900/30 text-green-400 dark:bg-green-900/30 dark:text-green-400'
-                    : 'bg-yellow-900/30 text-yellow-500 dark:bg-yellow-900/30 dark:text-yellow-400'
+                    ? 'bg-green-500/20 text-green-400'
+                    : 'bg-yellow-500/20 text-yellow-400'
                 }`}>
                   {order.status === 'confirmed' ? 'מאושר' : 'טיוטה'}
                 </span>
@@ -98,13 +118,21 @@ export default function OrderHistory() {
                 {order.notes && (
                   <div className="px-4 py-2 text-sm text-zigo-muted border-t border-zigo-border">הערה: {order.notes}</div>
                 )}
-                <div className="flex gap-2 p-3 border-t border-zigo-border bg-zigo-bg">
+                <div className="flex flex-wrap gap-2 p-3 border-t border-zigo-border bg-zigo-bg">
                   {order.status === 'draft' && (
                     <button onClick={() => confirm_(order.id)}
                       className="flex items-center gap-1 bg-zigo-green text-white px-3 py-1.5 rounded-lg text-sm hover:opacity-90 transition">
                       <CheckCircle size={14}/> אשר הזמנה
                     </button>
                   )}
+                  <button onClick={() => sendWhatsApp(order)}
+                    className="flex items-center gap-1 bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-green-700 transition">
+                    <MessageCircle size={14}/> WhatsApp
+                  </button>
+                  <button onClick={() => navigate(`/orders/${order.id}/print`)}
+                    className="flex items-center gap-1 bg-zigo-card text-zigo-text border border-zigo-border px-3 py-1.5 rounded-lg text-sm hover:bg-zigo-bg transition">
+                    <Printer size={14}/> הדפס PDF
+                  </button>
                   <button onClick={() => remove(order.id)}
                     className="flex items-center gap-1 text-red-500 border border-red-500/40 bg-red-500/10 px-3 py-1.5 rounded-lg text-sm hover:bg-red-500/20 transition">
                     <Trash2 size={14}/> מחק

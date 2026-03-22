@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getSuppliers, getProducts, getSuggestions, createOrder, type Supplier, type Product, type Suggestion } from '../api'
-import { ShoppingCart, Plus, Minus, Search, CheckCircle } from 'lucide-react'
+import {
+  getSuppliers, getProducts, getSuggestions, createOrder, getTemplates, createTemplate, deleteTemplate,
+  type Supplier, type Product, type Suggestion, type OrderTemplate
+} from '../api'
+import { ShoppingCart, Plus, Minus, Search, CheckCircle, AlertTriangle, BookmarkPlus, BookOpen, Trash2, X } from 'lucide-react'
 
 interface CartItem {
   product: Product
@@ -11,8 +14,8 @@ interface CartItem {
 
 function getWeekStart(): string {
   const d = new Date()
-  const day = d.getDay()        // 0=Sun
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1)  // Monday
+  const day = d.getDay()
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1)
   const mon = new Date(d.setDate(diff))
   return mon.toISOString().split('T')[0]
 }
@@ -23,12 +26,19 @@ export default function NewOrder() {
   const [supplierId, setSupplierId] = useState('')
   const [products, setProducts] = useState<Product[]>([])
   const [suggestions, setSuggestions] = useState<Record<string, Suggestion>>({})
+  const [templates, setTemplates] = useState<OrderTemplate[]>([])
   const [search, setSearch] = useState('')
   const [cart, setCart] = useState<CartItem[]>([])
   const [weekStart, setWeekStart] = useState(getWeekStart())
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
+
+  // Template UI state
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false)
+  const [templateName, setTemplateName] = useState('')
+  const [showTemplates, setShowTemplates] = useState(false)
+  const [savingTemplate, setSavingTemplate] = useState(false)
 
   useEffect(() => {
     getSuppliers().then(s => {
@@ -41,6 +51,7 @@ export default function NewOrder() {
     if (!supplierId) return
     getProducts({ supplier_id: supplierId }).then(setProducts)
     getSuggestions(supplierId).then(setSuggestions)
+    getTemplates(supplierId).then(setTemplates)
     setCart([])
   }, [supplierId])
 
@@ -63,6 +74,57 @@ export default function NewOrder() {
 
   function getQty(productId: string) {
     return cart.find(i => i.product.id === productId)?.quantity || 0
+  }
+
+  function getDeviationAlert(productId: string, qty: number): string | null {
+    const sug = suggestions[productId]
+    if (!sug || sug.order_count < 2 || qty === 0) return null
+    const deviation = Math.abs(qty - sug.avg_qty) / (sug.avg_qty || 1)
+    if (deviation > 0.5) {
+      const dir = qty > sug.avg_qty ? 'גבוהה' : 'נמוכה'
+      return `כמות ${dir} מהרגיל (ממוצע: ${sug.avg_qty})`
+    }
+    return null
+  }
+
+  async function loadTemplate(template: OrderTemplate) {
+    setShowTemplates(false)
+    const productMap = Object.fromEntries(products.map(p => [p.id, p]))
+    const newCart: CartItem[] = []
+    for (const item of template.items) {
+      const product = productMap[item.product_id]
+      if (product) {
+        newCart.push({
+          product,
+          quantity: item.quantity,
+          unit_price: product.latest_price || item.unit_price || 0,
+        })
+      }
+    }
+    setCart(newCart)
+  }
+
+  async function saveAsTemplate() {
+    if (!templateName.trim() || cart.length === 0) return
+    setSavingTemplate(true)
+    try {
+      const t = await createTemplate({
+        supplier_id: supplierId,
+        name: templateName.trim(),
+        items: cart.map(i => ({ product_id: i.product.id, quantity: i.quantity })),
+      })
+      setTemplates(prev => [t, ...prev])
+      setTemplateName('')
+      setShowSaveTemplate(false)
+    } finally {
+      setSavingTemplate(false)
+    }
+  }
+
+  async function removeTemplate(id: string, e: React.MouseEvent) {
+    e.stopPropagation()
+    await deleteTemplate(id)
+    setTemplates(prev => prev.filter(t => t.id !== id))
   }
 
   const total = cart.reduce((sum, i) => sum + i.quantity * i.unit_price, 0)
@@ -126,11 +188,12 @@ export default function NewOrder() {
             {filtered.map(p => {
               const qty = getQty(p.id)
               const sug = suggestions[p.id]
+              const alert = getDeviationAlert(p.id, qty)
               return (
                 <div key={p.id} className="flex items-center gap-3 px-4 py-3 hover:bg-zigo-bg transition-colors">
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-sm truncate text-zigo-text">{p.name}</div>
-                    <div className="text-xs text-zigo-muted flex items-center gap-2">
+                    <div className="text-xs text-zigo-muted flex items-center gap-2 flex-wrap">
                       {p.latest_price ? `₪${p.latest_price.toFixed(2)}` : 'אין מחיר'}
                       {p.unit && <span>· {p.unit}</span>}
                       {sug && sug.order_count > 0 && (
@@ -138,9 +201,13 @@ export default function NewOrder() {
                           מוצע: {sug.suggested_qty}
                         </span>
                       )}
+                      {alert && (
+                        <span className="flex items-center gap-1 text-orange-400 text-xs">
+                          <AlertTriangle size={11}/>{alert}
+                        </span>
+                      )}
                     </div>
                   </div>
-                  {/* Qty control */}
                   <div className="flex items-center gap-1">
                     <button onClick={() => setQty(p, qty - 1)}
                       className="w-8 h-8 rounded-full border border-zigo-border flex items-center justify-center text-zigo-text hover:bg-zigo-bg transition-colors">
@@ -176,6 +243,71 @@ export default function NewOrder() {
         {/* Cart summary */}
         <div className="bg-zigo-card rounded-xl shadow p-4 flex flex-col gap-3 h-fit sticky top-4 border border-zigo-border">
           <h3 className="font-bold text-zigo-text">סיכום הזמנה</h3>
+
+          {/* Templates */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setShowTemplates(v => !v); setShowSaveTemplate(false) }}
+              className="flex items-center gap-1 text-xs text-zigo-muted border border-zigo-border rounded-lg px-2 py-1 hover:bg-zigo-bg transition-colors"
+            >
+              <BookOpen size={13}/> טען תבנית
+              {templates.length > 0 && <span className="bg-zigo-green text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">{templates.length}</span>}
+            </button>
+            <button
+              onClick={() => { setShowSaveTemplate(v => !v); setShowTemplates(false) }}
+              disabled={cart.length === 0}
+              className="flex items-center gap-1 text-xs text-zigo-muted border border-zigo-border rounded-lg px-2 py-1 hover:bg-zigo-bg transition-colors disabled:opacity-40"
+            >
+              <BookmarkPlus size={13}/> שמור תבנית
+            </button>
+          </div>
+
+          {/* Template list */}
+          {showTemplates && (
+            <div className="border border-zigo-border rounded-lg overflow-hidden">
+              {templates.length === 0 ? (
+                <p className="text-xs text-zigo-muted p-3">אין תבניות שמורות</p>
+              ) : (
+                templates.map(t => (
+                  <div key={t.id} className="flex items-center justify-between p-2 border-b border-zigo-border last:border-0 hover:bg-zigo-bg transition-colors">
+                    <button
+                      onClick={() => loadTemplate(t)}
+                      className="text-sm text-zigo-text text-right flex-1 hover:text-zigo-green"
+                    >
+                      {t.name}
+                      <span className="text-xs text-zigo-muted mr-1">({t.items.length} פריטים)</span>
+                    </button>
+                    <button onClick={e => removeTemplate(t.id, e)} className="text-red-400 hover:text-red-500 p-1">
+                      <Trash2 size={12}/>
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* Save template form */}
+          {showSaveTemplate && (
+            <div className="flex gap-2">
+              <input
+                value={templateName}
+                onChange={e => setTemplateName(e.target.value)}
+                placeholder="שם התבנית..."
+                className="flex-1 text-sm border border-zigo-border rounded-lg px-2 py-1.5 bg-zigo-bg text-zigo-text placeholder:text-zigo-muted"
+                onKeyDown={e => e.key === 'Enter' && saveAsTemplate()}
+                autoFocus
+              />
+              <button onClick={saveAsTemplate} disabled={savingTemplate || !templateName.trim()}
+                className="bg-zigo-green text-white rounded-lg px-3 text-xs hover:opacity-90 disabled:opacity-40">
+                שמור
+              </button>
+              <button onClick={() => setShowSaveTemplate(false)} className="text-zigo-muted hover:text-zigo-text">
+                <X size={16}/>
+              </button>
+            </div>
+          )}
+
+          {/* Cart items */}
           {cart.length === 0 ? (
             <p className="text-zigo-muted text-sm">הוסף מוצרים</p>
           ) : (

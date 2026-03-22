@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react'
-import { getSuppliers, getDashboard, type Supplier, type Dashboard as DashboardData } from '../api'
+import { getSuppliers, getDashboard, getBudget, setBudget, type Supplier, type Dashboard as DashboardData } from '../api'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { ShoppingCart, AlertTriangle, DollarSign } from 'lucide-react'
+import { ShoppingCart, AlertTriangle, DollarSign, Pencil, Check, X } from 'lucide-react'
 
 export default function Dashboard() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [supplierId, setSupplierId] = useState('')
   const [data, setData] = useState<DashboardData | null>(null)
+  const [editingBudget, setEditingBudget] = useState(false)
+  const [budgetInput, setBudgetInput] = useState('')
+  const [savingBudget, setSavingBudget] = useState(false)
 
   useEffect(() => {
     getSuppliers().then(s => {
@@ -16,8 +19,26 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => {
-    if (supplierId) getDashboard(supplierId).then(setData)
+    if (supplierId) {
+      getDashboard(supplierId).then(d => {
+        setData(d)
+        setBudgetInput(d.budget ? String(d.budget.weekly_budget) : '')
+      })
+    }
   }, [supplierId])
+
+  async function saveBudget() {
+    const val = parseFloat(budgetInput)
+    if (isNaN(val) || val <= 0) return
+    setSavingBudget(true)
+    try {
+      await setBudget(supplierId, val)
+      getDashboard(supplierId).then(setData)
+      setEditingBudget(false)
+    } finally {
+      setSavingBudget(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -40,6 +61,78 @@ export default function Dashboard() {
             <StatCard icon={ShoppingCart} label="הזמנות" value={data.total_orders} color="blue"/>
             <StatCard icon={DollarSign} label='סה"כ הוצאות' value={`₪${data.total_spent.toFixed(0)}`} color="green"/>
             <StatCard icon={AlertTriangle} label="התראות מחיר" value={data.price_alerts.length} color="orange"/>
+          </div>
+
+          {/* Budget card */}
+          <div className="bg-zigo-card rounded-xl shadow p-4 border border-zigo-border">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-zigo-text flex items-center gap-2">
+                <DollarSign size={18} className="text-zigo-green"/>
+                תקציב שבועי
+              </h3>
+              {!editingBudget && (
+                <button
+                  onClick={() => setEditingBudget(true)}
+                  className="text-xs text-zigo-muted hover:text-zigo-green flex items-center gap-1 transition-colors"
+                >
+                  <Pencil size={13}/> {data.budget ? 'ערוך' : 'הגדר תקציב'}
+                </button>
+              )}
+            </div>
+
+            {editingBudget ? (
+              <div className="flex gap-2 items-center">
+                <span className="text-zigo-muted text-sm">₪</span>
+                <input
+                  type="number"
+                  value={budgetInput}
+                  onChange={e => setBudgetInput(e.target.value)}
+                  placeholder="0"
+                  className="flex-1 border border-zigo-border rounded-lg px-3 py-2 text-sm bg-zigo-bg text-zigo-text"
+                  autoFocus
+                  onKeyDown={e => e.key === 'Enter' && saveBudget()}
+                />
+                <button onClick={saveBudget} disabled={savingBudget}
+                  className="bg-zigo-green text-white rounded-lg px-3 py-2 text-sm hover:opacity-90 disabled:opacity-40 flex items-center gap-1">
+                  <Check size={14}/> שמור
+                </button>
+                <button onClick={() => setEditingBudget(false)} className="text-zigo-muted hover:text-zigo-text p-2">
+                  <X size={16}/>
+                </button>
+              </div>
+            ) : data.budget ? (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-zigo-muted">
+                    שבוע {data.budget.current_week || 'נוכחי'}: ₪{data.budget.current_week_spent.toFixed(0)}
+                  </span>
+                  <span className={`font-semibold ${
+                    data.budget.pct_used > 100 ? 'text-red-500' :
+                    data.budget.pct_used > 75 ? 'text-orange-400' :
+                    'text-zigo-green'
+                  }`}>
+                    {data.budget.pct_used}% מתוך ₪{data.budget.weekly_budget.toFixed(0)}
+                  </span>
+                </div>
+                <div className="w-full bg-zigo-bg rounded-full h-3 overflow-hidden">
+                  <div
+                    className={`h-3 rounded-full transition-all duration-500 ${
+                      data.budget.pct_used > 100 ? 'bg-red-500' :
+                      data.budget.pct_used > 75 ? 'bg-orange-400' :
+                      'bg-zigo-green'
+                    }`}
+                    style={{ width: `${Math.min(data.budget.pct_used, 100)}%` }}
+                  />
+                </div>
+                {data.budget.pct_used > 100 && (
+                  <p className="text-xs text-red-500 flex items-center gap-1">
+                    <AlertTriangle size={12}/> חריגה מהתקציב ב-₪{(data.budget.current_week_spent - data.budget.weekly_budget).toFixed(0)}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="text-zigo-muted text-sm">לא הוגדר תקציב לספק זה</p>
+            )}
           </div>
 
           {/* Weekly chart */}

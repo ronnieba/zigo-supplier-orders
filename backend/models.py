@@ -21,6 +21,8 @@ class Supplier(Base):
     catalogs = relationship("Catalog", back_populates="supplier")
     products = relationship("Product", back_populates="supplier")
     orders = relationship("Order", back_populates="supplier")
+    budget = relationship("SupplierBudget", back_populates="supplier", uselist=False)
+    templates = relationship("OrderTemplate", back_populates="supplier")
 
 
 class Catalog(Base):
@@ -51,6 +53,7 @@ class Product(Base):
     supplier = relationship("Supplier", back_populates="products")
     prices = relationship("ProductPrice", back_populates="product", order_by="ProductPrice.recorded_at")
     order_items = relationship("OrderItem", back_populates="product")
+    template_items = relationship("OrderTemplateItem", back_populates="product")
 
     @property
     def latest_price(self):
@@ -105,3 +108,38 @@ class OrderItem(Base):
     @property
     def total_price(self):
         return round(self.quantity * self.unit_price, 2)
+
+
+class SupplierBudget(Base):
+    __tablename__ = "supplier_budgets"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    supplier_id = Column(String, ForeignKey("suppliers.id"), nullable=False, unique=True)
+    weekly_budget = Column(Float, nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    supplier = relationship("Supplier", back_populates="budget")
+
+
+class OrderTemplate(Base):
+    __tablename__ = "order_templates"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    supplier_id = Column(String, ForeignKey("suppliers.id"), nullable=False)
+    name = Column(String, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+    supplier = relationship("Supplier", back_populates="templates")
+    items = relationship("OrderTemplateItem", back_populates="template", cascade="all, delete-orphan")
+
+
+class OrderTemplateItem(Base):
+    __tablename__ = "order_template_items"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    template_id = Column(String, ForeignKey("order_templates.id"), nullable=False)
+    product_id = Column(String, ForeignKey("products.id"), nullable=False)
+    quantity = Column(Float, nullable=False)
+
+    template = relationship("OrderTemplate", back_populates="items")
+    product = relationship("Product", back_populates="template_items")

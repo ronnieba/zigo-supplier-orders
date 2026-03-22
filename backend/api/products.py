@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
 from database import get_db
-from models import Product, ProductPrice, OrderItem
+from models import Product, ProductPrice, OrderItem, Supplier
 
 router = APIRouter(prefix="/products", tags=["products"])
 
@@ -57,6 +57,45 @@ def list_categories(supplier_id: str | None = None, db: Session = Depends(get_db
         q = q.filter(Product.supplier_id == supplier_id)
     cats = [row[0] for row in q.distinct().all() if row[0]]
     return sorted(cats)
+
+
+@router.get("/compare")
+def compare_products(name: str, db: Session = Depends(get_db)):
+    """Find products with similar names across all suppliers and compare prices."""
+    products = (
+        db.query(Product)
+        .options(joinedload(Product.prices), joinedload(Product.supplier))
+        .filter(Product.name.ilike(f"%{name}%"))
+        .all()
+    )
+
+    # Group by normalized name
+    from collections import defaultdict
+    groups: dict = defaultdict(list)
+    for p in products:
+        prices_sorted = sorted(p.prices, key=lambda x: x.recorded_at)
+        latest_price = prices_sorted[-1].price if prices_sorted else None
+        groups[p.name.strip()].append({
+            "product_id": p.id,
+            "supplier_id": p.supplier_id,
+            "supplier_name": p.supplier.name if p.supplier else "",
+            "price": latest_price,
+            "unit": p.unit,
+            "code": p.code,
+        })
+
+    result = []
+    for product_name, matches in groups.items():
+        if len(matches) >= 1:
+            valid_prices = [m["price"] for m in matches if m["price"] is not None]
+            min_price = min(valid_prices) if valid_prices else None
+            result.append({
+                "name": product_name,
+                "matches": matches,
+                "min_price": min_price,
+            })
+
+    return sorted(result, key=lambda x: x["name"])
 
 
 @router.get("/{product_id}/price-history")

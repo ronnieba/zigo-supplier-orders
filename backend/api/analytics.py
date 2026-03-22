@@ -4,7 +4,7 @@ from sqlalchemy import func
 from collections import defaultdict
 
 from database import get_db
-from models import Order, OrderItem, Product, ProductPrice
+from models import Order, OrderItem, Product, ProductPrice, SupplierBudget
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -28,11 +28,26 @@ def dashboard(supplier_id: str, db: Session = Depends(get_db)):
     # Price alerts: products with >5% increase in latest catalog
     price_alerts = _price_alerts(supplier_id, db)
 
+    # Budget
+    budget_row = db.query(SupplierBudget).filter(SupplierBudget.supplier_id == supplier_id).first()
+    budget = None
+    if budget_row:
+        current_week = sorted(weekly.keys())[-1] if weekly else None
+        current_week_spent = weekly.get(current_week, 0) if current_week else 0
+        pct = round(current_week_spent / budget_row.weekly_budget * 100, 1) if budget_row.weekly_budget > 0 else 0
+        budget = {
+            "weekly_budget": budget_row.weekly_budget,
+            "current_week_spent": round(current_week_spent, 2),
+            "pct_used": pct,
+            "current_week": current_week,
+        }
+
     return {
         "total_orders": total_orders,
         "total_spent": round(total_spent, 2),
         "weekly_chart": weekly_chart,
         "price_alerts": price_alerts,
+        "budget": budget,
     }
 
 

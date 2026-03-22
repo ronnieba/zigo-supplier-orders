@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from database import engine, Base
 import models
 
-from api import suppliers, catalogs, products, orders, analytics
+from api import suppliers, catalogs, products, orders, analytics, templates
 
 Base.metadata.create_all(bind=engine)
 
@@ -26,6 +26,7 @@ app.include_router(catalogs.router, prefix="/api")
 app.include_router(products.router, prefix="/api")
 app.include_router(orders.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
+app.include_router(templates.router, prefix="/api")
 
 @app.get("/api/health")
 def health():

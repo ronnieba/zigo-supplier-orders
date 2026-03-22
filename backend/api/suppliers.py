@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from database import get_db
-from models import Supplier
+from models import Supplier, SupplierBudget
 
 router = APIRouter(prefix="/suppliers", tags=["suppliers"])
 
@@ -56,3 +56,27 @@ def update_supplier(supplier_id: str, body: SupplierCreate, db: Session = Depend
     db.commit()
     db.refresh(s)
     return s
+
+
+class BudgetIn(BaseModel):
+    weekly_budget: float
+
+
+@router.get("/{supplier_id}/budget")
+def get_budget(supplier_id: str, db: Session = Depends(get_db)):
+    b = db.query(SupplierBudget).filter(SupplierBudget.supplier_id == supplier_id).first()
+    if not b:
+        return None
+    return {"supplier_id": b.supplier_id, "weekly_budget": b.weekly_budget}
+
+
+@router.put("/{supplier_id}/budget")
+def set_budget(supplier_id: str, body: BudgetIn, db: Session = Depends(get_db)):
+    b = db.query(SupplierBudget).filter(SupplierBudget.supplier_id == supplier_id).first()
+    if b:
+        b.weekly_budget = body.weekly_budget
+    else:
+        b = SupplierBudget(supplier_id=supplier_id, weekly_budget=body.weekly_budget)
+        db.add(b)
+    db.commit()
+    return {"supplier_id": supplier_id, "weekly_budget": body.weekly_budget}
