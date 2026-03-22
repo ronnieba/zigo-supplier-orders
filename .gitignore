@@ -1,8 +1,12 @@
-venv/
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+venv/
 .env
-*.egg-info/
+*.db
+
+# Node
+node_modules/
 dist/
-build/
 .DS_Store
+backend/uploads/
