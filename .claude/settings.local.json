@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"venv/Scripts/python.exe\":*)",
+      "Bash(python:*)",
+      "Bash(curl:*)",
+      "Bash(taskkill:*)",
+      "Bash(cmd:*)",
+      "Bash(powershell:*)",
+      "Bash(cmd.exe /c \"dir U:\"\")",
+      "Bash(node --version)",
+      "Bash(npm --version)",
+      "Bash(docker --version)",
+      "Bash(pip --version)",
+      "Bash(source venv/Scripts/activate)",
+      "Bash(pip install -q -r requirements.txt)",
+      "Bash(npm install)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(tesseract --version)",
+      "Bash(pip install -q easyocr Pillow)",
+      "Bash(pip install -q pymupdf)",
+      "Bash(pip install -q pypdf)",
+      "Bash(venv/Scripts/python.exe -c \":*)",
+      "Bash(gh auth:*)",
+      "Bash(where gh:*)",
+      "Bash(start cmd:*)",
+      "Bash(\"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" auth status)"
+    ]
+  }
+}
