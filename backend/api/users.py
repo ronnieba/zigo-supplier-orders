@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import User
-from api.auth import hash_password, verify_password, new_uuid
+from api.auth import hash_password, verify_password
 
 router = APIRouter(prefix="/users", tags=["users"])
 
