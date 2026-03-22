@@ -4,7 +4,7 @@ from sqlalchemy import func
 from collections import defaultdict
 
 from database import get_db
-from models import Order, OrderItem, Product, ProductPrice, SupplierBudget
+from models import Order, OrderItem, Product, ProductPrice, SupplierBudget, Supplier
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -76,6 +76,46 @@ def _price_alerts(supplier_id: str, db: Session, threshold: float = 0.05) -> lis
                         "change_pct": round(change_pct * 100, 1),
                     })
     return sorted(alerts, key=lambda x: abs(x["change_pct"]), reverse=True)
+
+
+@router.get("/summary")
+def all_suppliers_summary(db: Session = Depends(get_db)):
+    """Weekly spend summary for ALL suppliers (for overview dashboard)."""
+    from datetime import date, timedelta
+    today = date.today()
+    # Current week start (Monday)
+    week_start = (today - timedelta(days=today.weekday())).isoformat()
+
+    suppliers = db.query(Supplier).all()
+    result = []
+    for s in suppliers:
+        orders_this_week = db.query(Order).filter(
+            Order.supplier_id == s.id,
+            Order.week_start == week_start
+        ).all()
+        week_spent = sum(o.total_cost for o in orders_this_week)
+
+        all_orders = db.query(Order).filter(Order.supplier_id == s.id).all()
+        total_spent = sum(o.total_cost for o in all_orders)
+
+        budget_row = db.query(SupplierBudget).filter(SupplierBudget.supplier_id == s.id).first()
+        budget = None
+        if budget_row and budget_row.weekly_budget > 0:
+            pct = round(week_spent / budget_row.weekly_budget * 100, 1)
+            budget = {"weekly_budget": budget_row.weekly_budget, "pct_used": pct}
+
+        result.append({
+            "supplier_id": s.id,
+            "supplier_name": s.name,
+            "week_spent": round(week_spent, 2),
+            "total_spent": round(total_spent, 2),
+            "total_orders": len(all_orders),
+            "budget": budget,
+        })
+
+    # Sort by week_spent descending
+    result.sort(key=lambda x: x["week_spent"], reverse=True)
+    return result
 
 
 @router.get("/top-products/{supplier_id}")

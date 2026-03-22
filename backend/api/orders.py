@@ -6,7 +6,7 @@ from typing import Optional
 import io
 
 from database import get_db
-from models import Order, OrderItem, Product
+from models import Order, OrderItem, Product, Supplier
 from services.suggestions import calculate_suggestions
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -50,14 +50,85 @@ def order_to_dict(order: Order) -> dict:
     }
 
 
+@router.get("/export")
+def export_orders_csv(supplier_id: str | None = None, product_name: str | None = None, db: Session = Depends(get_db)):
+    """Export orders as Excel (.xlsx)."""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.utils import get_column_letter
+
+    q = db.query(Order).options(joinedload(Order.items).joinedload(OrderItem.product))
+    if supplier_id:
+        q = q.filter(Order.supplier_id == supplier_id)
+    orders = q.order_by(Order.week_start.desc()).all()
+
+    if product_name:
+        orders = [o for o in orders if any(
+            product_name.lower() in (item.product.name or '').lower()
+            for item in o.items if item.product
+        )]
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "הזמנות"
+
+    # Right-to-left sheet
+    ws.sheet_view.rightToLeft = True
+
+    header_fill = PatternFill("solid", fgColor="7AAE96")
+    header_font = Font(bold=True, color="FFFFFF")
+    headers = ["ספק", "שבוע", "מוצר", "קוד", "יחידה", "כמות", "מחיר יחידה", 'סה"כ', "סטטוס", "הערות"]
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+
+    row = 2
+    for order in orders:
+        supplier_name = order.supplier.name if order.supplier else ""
+        for item in order.items:
+            ws.cell(row=row, column=1, value=supplier_name)
+            ws.cell(row=row, column=2, value=order.week_start)
+            ws.cell(row=row, column=3, value=item.product.name if item.product else "")
+            ws.cell(row=row, column=4, value=item.product.code if item.product else "")
+            ws.cell(row=row, column=5, value=item.product.unit if item.product else "")
+            ws.cell(row=row, column=6, value=item.quantity)
+            ws.cell(row=row, column=7, value=item.unit_price)
+            ws.cell(row=row, column=8, value=item.total_price)
+            ws.cell(row=row, column=9, value="מאושר" if order.status == "confirmed" else "טיוטה")
+            ws.cell(row=row, column=10, value=order.notes or "")
+            row += 1
+
+    # Auto column width
+    for col in range(1, len(headers) + 1):
+        ws.column_dimensions[get_column_letter(col)].width = 16
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=orders.xlsx"}
+    )
+
+
 @router.get("/")
-def list_orders(supplier_id: str | None = None, db: Session = Depends(get_db)):
+def list_orders(supplier_id: str | None = None, product_name: str | None = None, db: Session = Depends(get_db)):
     q = db.query(Order).options(
         joinedload(Order.items).joinedload(OrderItem.product)
     )
     if supplier_id:
         q = q.filter(Order.supplier_id == supplier_id)
     orders = q.order_by(Order.week_start.desc()).all()
+
+    if product_name:
+        orders = [o for o in orders if any(
+            product_name.lower() in (item.product.name or '').lower()
+            for item in o.items if item.product
+        )]
+
     return [order_to_dict(o) for o in orders]
 
 

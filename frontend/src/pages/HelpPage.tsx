@@ -2,8 +2,9 @@ import { useState } from 'react'
 import {
   LayoutDashboard, Package, ShoppingCart, History, BarChart2,
   Truck, Calendar, ChevronDown, ChevronUp, MessageCircle,
-  Printer, AlertTriangle, BookTemplate, DollarSign, Search,
-  Smartphone, HelpCircle, Lightbulb, CheckCircle2
+  Printer, AlertTriangle, DollarSign, Search,
+  Smartphone, HelpCircle, Lightbulb, CheckCircle2,
+  Download, Bell, Database, ShieldCheck
 } from 'lucide-react'
 
 interface Section {
@@ -194,6 +195,110 @@ const SECTIONS: Section[] = [
       {
         q: 'איך מנווטים בין חודשים?',
         a: 'השתמש בחצים < > משני צדי שם החודש כדי לעבור חודש קדימה או אחורה.'
+      },
+    ]
+  },
+  {
+    id: 'overview',
+    icon: LayoutDashboard,
+    iconColor: 'text-indigo-400',
+    title: 'סקירה כללית — כל הספקים',
+    subtitle: 'תצוגת כל הספקים במקביל',
+    items: [
+      {
+        q: 'מה ההבדל בין "ספק בודד" ל"כל הספקים"?',
+        a: 'בלוח הבקרה, לחץ על הכרטיסייה "כל הספקים" כדי לראות בכרטיסייה אחת את הוצאות השבוע של כל הספקים, כולל פס תקציב לכל אחד וסה"כ כולל.',
+        tip: 'שימושי לראייה מהירה של מצב כלל ההוצאות לפני תחילת השבוע'
+      },
+    ]
+  },
+  {
+    id: 'search-history',
+    icon: Search,
+    iconColor: 'text-cyan-500',
+    title: 'חיפוש מוצר בהיסטוריה',
+    subtitle: 'מצא מתי ובאיזה מחיר הוזמן מוצר',
+    items: [
+      {
+        q: 'איך מחפשים מוצר ספציפי בהיסטוריה?',
+        a: 'בדף "היסטוריה", בשדה "חיפוש מוצר" הקלד חלק משם המוצר ולחץ "חפש". תראה רק הזמנות שכוללות אותו מוצר.',
+        tip: 'לדוגמה: חפש "חלב" לראות את כל ההזמנות שכללו מוצרי חלב, בכל ספק'
+      },
+    ]
+  },
+  {
+    id: 'export',
+    icon: Download,
+    iconColor: 'text-green-500',
+    title: 'ייצוא לExcel',
+    subtitle: 'הורדת הזמנות כקובץ גיליון',
+    items: [
+      {
+        q: 'איך מייצאים הזמנות לExcel?',
+        a: 'בדף "היסטוריה", לחץ "ייצוא Excel". יורד קובץ .xlsx עם כל ההזמנות שמסוננות כרגע — כולל שם ספק, שבוע, פריטים, כמויות ומחירים.',
+        tip: 'ניתן לסנן לפי ספק ו/או מוצר לפני הייצוא כדי לקבל Excel ממוקד'
+      },
+    ]
+  },
+  {
+    id: 'reminders',
+    icon: Bell,
+    iconColor: 'text-yellow-500',
+    title: 'תזכורות שבועיות',
+    subtitle: 'קבל תזכורת ביום ובשעה קבועים',
+    items: [
+      {
+        q: 'איך מגדירים תזכורת להזמנה?',
+        a: (
+          <ol className="list-decimal list-inside space-y-1 mt-1">
+            <li>לחץ על אייקון הפעמון בפינה הימנית העליונה</li>
+            <li>סמן "הפעל תזכורת"</li>
+            <li>בחר יום בשבוע ושעה</li>
+            <li>ניתן לערוך את טקסט ההתראה</li>
+            <li>לחץ "שמור וסגור"</li>
+          </ol>
+        ),
+        tip: 'התזכורת מופיעה כ-toast בתחתית המסך כשפותחים את האפליקציה ביום ובשעה שנקבעו'
+      },
+    ]
+  },
+  {
+    id: 'backup',
+    icon: Database,
+    iconColor: 'text-blue-500',
+    title: 'גיבוי ושחזור',
+    subtitle: 'שמירה ושחזור כל נתוני המערכת',
+    items: [
+      {
+        q: 'איך מגבים את המערכת?',
+        a: 'עבור לדף "גיבוי" בניווט, לחץ "הורד גיבוי עכשיו". יורד קובץ JSON עם כל הנתונים — ספקים, מוצרים, הזמנות, תבניות ותקציבים.',
+        tip: 'מומלץ לגבות לפחות פעם בשבוע. שמור בשני מקומות: מחשב + Google Drive'
+      },
+      {
+        q: 'איך משחזרים גיבוי?',
+        a: 'בדף "גיבוי", לחץ על אזור הייבוא ובחר קובץ .json שיוצא קודם. לחץ "ייבא גיבוי". רשומות קיימות לא יימחקו — רק נתונים חדשים יתווספו.',
+      },
+      {
+        q: 'האם הגיבוי מחליף את הנתונים הקיימים?',
+        a: 'לא. הייבוא פועל בצורה "בטוחה" — רק נתונים שלא קיימים עדיין מתווספים. ניתן לייבא את אותו גיבוי כמה פעמים ללא חשש.'
+      },
+    ]
+  },
+  {
+    id: 'auth',
+    icon: ShieldCheck,
+    iconColor: 'text-red-400',
+    title: 'הגנת סיסמה',
+    subtitle: 'אבטחת גישה למערכת',
+    items: [
+      {
+        q: 'איך מגדירים סיסמה למערכת?',
+        a: 'ב-Render.com, הוסף משתנה סביבה בשם APP_PASSWORD עם הסיסמה הרצויה. לאחר הפריסה, כל גישה למערכת תדרוש כניסה עם הסיסמה.',
+        tip: 'אם APP_PASSWORD לא מוגדר, המערכת פתוחה ללא סיסמה (מתאים לרשת מקומית פרטית)'
+      },
+      {
+        q: 'איך מתנתקים?',
+        a: 'לחץ על אייקון ה-LogOut (חץ יציאה) בפינה הימנית העליונה.'
       },
     ]
   },
