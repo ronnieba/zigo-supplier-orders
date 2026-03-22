@@ -1,6 +1,6 @@
 import { Routes, Route, NavLink } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { LayoutDashboard, Package, ShoppingCart, History, BarChart2, Truck, Menu, X, Sun, Moon, Calendar } from 'lucide-react'
+import { LayoutDashboard, Package, ShoppingCart, History, BarChart2, Truck, Menu, X, Sun, Moon, Calendar, HelpCircle } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import Catalog from './pages/Catalog'
 import NewOrder from './pages/NewOrder'
@@ -9,6 +9,7 @@ import OrderPrint from './pages/OrderPrint'
 import Analytics from './pages/Analytics'
 import Suppliers from './pages/Suppliers'
 import CalendarPage from './pages/CalendarPage'
+import HelpPage from './pages/HelpPage'
 import ZigoLogo from './ZigoLogo'
 
 const NAV = [
@@ -19,6 +20,7 @@ const NAV = [
   { to: '/orders', icon: History, label: 'היסטוריה' },
   { to: '/analytics', icon: BarChart2, label: 'אנליטיקות' },
   { to: '/calendar', icon: Calendar, label: 'לוח שנה' },
+  { to: '/help', icon: HelpCircle, label: 'עזרה' },
 ]
 
 export default function App() {
@@ -134,6 +136,7 @@ export default function App() {
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/suppliers" element={<Suppliers />} />
             <Route path="/calendar" element={<CalendarPage />} />
+            <Route path="/help" element={<HelpPage />} />
           </Routes>
         </main>
       </div>
