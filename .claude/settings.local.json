@@ -2,7 +2,17 @@
   "permissions": {
     "allow": [
       "Bash(powershell -Command \"Get-ChildItem -Path ''C:\\\\Users\\\\Roni\\\\.gemini\\\\antigravity\\\\scratch\\\\BookmarkDashboard'' -Filter ''__pycache__'' -Recurse | Remove-Item -Recurse -Force; Write-Host ''Done''\")",
-      "Bash(powershell -Command \"Copy-Item -Path ''C:\\\\Users\\\\Roni\\\\.gemini\\\\antigravity\\\\scratch\\\\SupplierOrders\\\\start.bat'' -Destination ''C:\\\\Users\\\\Roni\\\\.gemini\\\\antigravity\\\\scratch\\\\BookmarkDashboard\\\\start.bat''; Write-Host ''start.bat copied''\")"
+      "Bash(powershell -Command \"Copy-Item -Path ''C:\\\\Users\\\\Roni\\\\.gemini\\\\antigravity\\\\scratch\\\\SupplierOrders\\\\start.bat'' -Destination ''C:\\\\Users\\\\Roni\\\\.gemini\\\\antigravity\\\\scratch\\\\BookmarkDashboard\\\\start.bat''; Write-Host ''start.bat copied''\")",
+      "Bash(ls \"C:\\\\Users\\\\Roni\\\\.gemini\\\\antigravity\\\\scratch\\\\BookmarkDashboard\\\\backend\\\\api\"\" && ls \"C:UsersRoni.geminiantigravityscratchBookmarkDashboardfrontendsrcpages\"\")",
+      "Bash(npx vite:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(python -c \"from api import auth, users, backup, suppliers, orders, analytics, templates, catalogs, products\")",
+      "Bash(pip install:*)",
+      "Bash(python -c \"from api import auth, users, backup, suppliers, orders, analytics, templates, catalogs, products; print\\(''''OK''''\\)\")",
+      "Bash(python -c \"from api import auth, users, backup, suppliers, orders, analytics, templates, catalogs, products; print\\(''כל הimports תקינים ✓''\\)\")",
+      "Bash(python -c \"from api import auth, users, backup, suppliers, orders, analytics, templates, catalogs, products; print\\(''ALL IMPORTS OK''\\)\")",
+      "Bash(python -c \"from api import auth, users, backup, suppliers, orders, analytics, templates, catalogs, products; print\\(''Backend OK''\\)\")"
     ]
   }
 }
