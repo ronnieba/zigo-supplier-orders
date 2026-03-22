@@ -1,5 +1,6 @@
 fastapi
-uvicorn
+uvicorn[standard]
 aiohttp
 beautifulsoup4
 duckduckgo-search
+pydantic
