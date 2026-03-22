@@ -12,6 +12,21 @@ from api.auth import verify_token, get_auth_mode
 
 Base.metadata.create_all(bind=engine)
 
+
+def _run_migrations():
+    """Add new columns to existing tables (safe, idempotent)."""
+    from sqlalchemy import text, inspect
+    insp = inspect(engine)
+    with engine.connect() as conn:
+        # suppliers.reminder_days — added in v2.1
+        cols = [c["name"] for c in insp.get_columns("suppliers")]
+        if "reminder_days" not in cols:
+            conn.execute(text("ALTER TABLE suppliers ADD COLUMN reminder_days TEXT"))
+            conn.commit()
+
+
+_run_migrations()
+
 app = FastAPI(title="מערכת הזמנות ספקים - ZIGO", version="2.0.0")
 
 app.add_middleware(
