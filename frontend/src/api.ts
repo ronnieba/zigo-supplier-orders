@@ -18,6 +18,8 @@ export const createSupplier = (data: { name: string; contact?: string }) =>
   req<Supplier>('/suppliers/', { method: 'POST', body: JSON.stringify(data) })
 export const deleteSupplier = (id: string) =>
   req(`/suppliers/${id}`, { method: 'DELETE' })
+export const updateSupplier = (id: string, data: { name: string; contact?: string }) =>
+  req<Supplier>(`/suppliers/${id}`, { method: 'PUT', body: JSON.stringify(data) })
 
 // --- Catalogs ---
 export const getCatalogs = (supplier_id?: string) =>

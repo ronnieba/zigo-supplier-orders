@@ -44,3 +44,15 @@ def delete_supplier(supplier_id: str, db: Session = Depends(get_db)):
     db.delete(s)
     db.commit()
     return {"ok": True}
+
+
+@router.put("/{supplier_id}", response_model=SupplierOut)
+def update_supplier(supplier_id: str, body: SupplierCreate, db: Session = Depends(get_db)):
+    s = db.query(Supplier).filter(Supplier.id == supplier_id).first()
+    if not s:
+        raise HTTPException(404, "Supplier not found")
+    s.name = body.name
+    s.contact = body.contact
+    db.commit()
+    db.refresh(s)
+    return s

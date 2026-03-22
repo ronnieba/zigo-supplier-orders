@@ -1,8 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(/c/Users/Roni/.gemini/antigravity/scratch/BookmarkDashboard/.gitignore:*)",
-      "Bash(git add:*)"
+      "Bash(powershell -Command \"Get-ChildItem -Path ''C:\\\\Users\\\\Roni\\\\.gemini\\\\antigravity\\\\scratch\\\\BookmarkDashboard'' -Filter ''__pycache__'' -Recurse | Remove-Item -Recurse -Force; Write-Host ''Done''\")",
+      "Bash(powershell -Command \"Copy-Item -Path ''C:\\\\Users\\\\Roni\\\\.gemini\\\\antigravity\\\\scratch\\\\SupplierOrders\\\\start.bat'' -Destination ''C:\\\\Users\\\\Roni\\\\.gemini\\\\antigravity\\\\scratch\\\\BookmarkDashboard\\\\start.bat''; Write-Host ''start.bat copied''\")"
     ]
   }
 }

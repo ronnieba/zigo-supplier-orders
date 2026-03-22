@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { getSuppliers, createSupplier, deleteSupplier, uploadCatalog, getCatalogs, deleteCatalog, type Supplier, type Catalog } from '../api'
-import { Truck, Plus, Trash2, Upload, FileText, Image } from 'lucide-react'
+import { getSuppliers, createSupplier, deleteSupplier, updateSupplier, uploadCatalog, getCatalogs, deleteCatalog, type Supplier, type Catalog } from '../api'
+import { Truck, Plus, Trash2, Upload, FileText, Image, Pencil } from 'lucide-react'
 
 export default function Suppliers() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
@@ -10,6 +10,9 @@ export default function Suppliers() {
   const [newContact, setNewContact] = useState('')
   const [uploading, setUploading] = useState(false)
   const [msg, setMsg] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editContact, setEditContact] = useState('')
 
   useEffect(() => { load() }, [])
   useEffect(() => { if (selected) loadCatalogs(selected.id) }, [selected])
@@ -39,6 +42,25 @@ export default function Suppliers() {
     load()
   }
 
+  function startEdit(s: Supplier) {
+    setEditingId(s.id)
+    setEditName(s.name)
+    setEditContact(s.contact || '')
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditName('')
+    setEditContact('')
+  }
+
+  async function saveEdit(id: string) {
+    if (!editName.trim()) return
+    await updateSupplier(id, { name: editName.trim(), contact: editContact.trim() || undefined })
+    cancelEdit()
+    load()
+  }
+
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     if (!selected || !e.target.files?.[0]) return
     setUploading(true); setMsg('')
@@ -57,50 +79,103 @@ export default function Suppliers() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold flex items-center gap-2"><Truck size={24}/>ספקים וקטלוגים</h2>
+      <h2 className="text-2xl font-bold flex items-center gap-2 text-zigo-text"><Truck size={24}/>ספקים וקטלוגים</h2>
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* Supplier list */}
-        <div className="bg-white rounded-xl shadow p-4 space-y-4">
-          <h3 className="font-semibold text-gray-700">רשימת ספקים</h3>
+        <div className="bg-zigo-card rounded-xl shadow p-4 space-y-4 border border-zigo-border">
+          <h3 className="font-semibold text-zigo-muted">רשימת ספקים</h3>
           <div className="space-y-2">
             {suppliers.map(s => (
               <div
                 key={s.id}
-                onClick={() => setSelected(s)}
+                onClick={() => { if (editingId !== s.id) setSelected(s) }}
                 className={`flex items-center justify-between p-3 rounded-lg cursor-pointer border transition ${
-                  selected?.id === s.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
+                  selected?.id === s.id ? 'border-zigo-green bg-zigo-bg' : 'border-zigo-border hover:bg-zigo-bg'
                 }`}
               >
-                <div>
-                  <div className="font-medium">{s.name}</div>
-                  {s.contact && <div className="text-xs text-gray-500">{s.contact}</div>}
-                </div>
-                <button onClick={e => { e.stopPropagation(); removeSupplier(s.id) }}
-                  className="text-red-400 hover:text-red-600 p-1">
-                  <Trash2 size={16}/>
-                </button>
+                {editingId === s.id ? (
+                  <div className="flex-1 space-y-1" onClick={e => e.stopPropagation()}>
+                    <input
+                      className="w-full border border-zigo-border rounded-lg px-2 py-1 text-sm bg-zigo-bg text-zigo-text"
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
+                      placeholder="שם ספק"
+                    />
+                    <input
+                      className="w-full border border-zigo-border rounded-lg px-2 py-1 text-sm bg-zigo-bg text-zigo-text"
+                      value={editContact}
+                      onChange={e => setEditContact(e.target.value)}
+                      placeholder="פרטי קשר (אופציונלי)"
+                    />
+                    <div className="flex gap-2 mt-1">
+                      <button
+                        onClick={() => saveEdit(s.id)}
+                        className="flex-1 bg-zigo-green text-white rounded-lg py-1 text-xs font-medium hover:opacity-90"
+                      >
+                        שמור
+                      </button>
+                      <button
+                        onClick={cancelEdit}
+                        className="flex-1 border border-zigo-border text-zigo-muted rounded-lg py-1 text-xs font-medium hover:bg-zigo-bg"
+                      >
+                        ביטול
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <div className="font-medium text-zigo-text">{s.name}</div>
+                      {s.contact && <div className="text-xs text-zigo-muted">{s.contact}</div>}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={e => { e.stopPropagation(); startEdit(s) }}
+                        className="text-zigo-muted hover:text-zigo-green p-1 transition-colors"
+                      >
+                        <Pencil size={15}/>
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); removeSupplier(s.id) }}
+                        className="text-red-400 hover:text-red-600 p-1"
+                      >
+                        <Trash2 size={16}/>
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
-            {suppliers.length === 0 && <p className="text-gray-400 text-sm">אין ספקים עדיין</p>}
+            {suppliers.length === 0 && <p className="text-zigo-muted text-sm">אין ספקים עדיין</p>}
           </div>
 
           {/* Add supplier */}
-          <div className="border-t pt-3 space-y-2">
-            <input className="w-full border rounded-lg px-3 py-2 text-sm"
-              placeholder="שם ספק" value={newName} onChange={e => setNewName(e.target.value)}/>
-            <input className="w-full border rounded-lg px-3 py-2 text-sm"
-              placeholder="פרטי קשר (אופציונלי)" value={newContact} onChange={e => setNewContact(e.target.value)}/>
-            <button onClick={addSupplier}
-              className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-1 hover:bg-blue-700">
+          <div className="border-t border-zigo-border pt-3 space-y-2">
+            <input
+              className="w-full border border-zigo-border rounded-lg px-3 py-2 text-sm bg-zigo-bg text-zigo-text placeholder:text-zigo-muted"
+              placeholder="שם ספק"
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+            />
+            <input
+              className="w-full border border-zigo-border rounded-lg px-3 py-2 text-sm bg-zigo-bg text-zigo-text placeholder:text-zigo-muted"
+              placeholder="פרטי קשר (אופציונלי)"
+              value={newContact}
+              onChange={e => setNewContact(e.target.value)}
+            />
+            <button
+              onClick={addSupplier}
+              className="w-full bg-zigo-green text-white rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-1 hover:opacity-90 transition-opacity"
+            >
               <Plus size={16}/> הוסף ספק
             </button>
           </div>
         </div>
 
         {/* Catalogs for selected supplier */}
-        <div className="bg-white rounded-xl shadow p-4 space-y-4">
-          <h3 className="font-semibold text-gray-700">
+        <div className="bg-zigo-card rounded-xl shadow p-4 space-y-4 border border-zigo-border">
+          <h3 className="font-semibold text-zigo-muted">
             קטלוגים {selected ? `— ${selected.name}` : ''}
           </h3>
 
@@ -108,14 +183,14 @@ export default function Suppliers() {
             <>
               {/* Upload */}
               <label className={`flex flex-col items-center justify-center gap-1 border-2 border-dashed rounded-xl p-4 cursor-pointer transition
-                ${uploading ? 'border-gray-300 bg-gray-50' : 'border-blue-300 hover:bg-blue-50'}`}>
+                ${uploading ? 'border-zigo-border bg-zigo-bg' : 'border-zigo-green hover:bg-zigo-bg'}`}>
                 <div className="flex items-center gap-2">
-                  <Upload size={20} className="text-blue-500"/>
-                  <span className="text-sm font-medium text-blue-600">
+                  <Upload size={20} className="text-zigo-green"/>
+                  <span className="text-sm font-medium text-zigo-green">
                     {uploading ? 'מעבד — אנא המתן...' : 'העלה קטלוג'}
                   </span>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
+                <div className="flex items-center gap-3 text-xs text-zigo-muted mt-1">
                   <span className="flex items-center gap-1"><FileText size={12}/> PDF</span>
                   <span className="flex items-center gap-1"><Image size={12}/> JPG / PNG / WEBP</span>
                 </div>
@@ -141,12 +216,12 @@ export default function Suppliers() {
 
               <div className="space-y-2">
                 {catalogs.map(c => (
-                  <div key={c.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div key={c.id} className="flex items-center justify-between p-3 border border-zigo-border rounded-lg">
                     <div className="flex items-center gap-2">
-                      <FileText size={16} className="text-gray-400"/>
+                      <FileText size={16} className="text-zigo-muted"/>
                       <div>
-                        <div className="text-sm font-medium">{c.filename}</div>
-                        <div className="text-xs text-gray-500">
+                        <div className="text-sm font-medium text-zigo-text">{c.filename}</div>
+                        <div className="text-xs text-zigo-muted">
                           {c.products_count} מוצרים · {new Date(c.uploaded_at).toLocaleDateString('he-IL')}
                         </div>
                       </div>
@@ -157,11 +232,11 @@ export default function Suppliers() {
                     </button>
                   </div>
                 ))}
-                {catalogs.length === 0 && <p className="text-gray-400 text-sm">אין קטלוגים עדיין</p>}
+                {catalogs.length === 0 && <p className="text-zigo-muted text-sm">אין קטלוגים עדיין</p>}
               </div>
             </>
           ) : (
-            <p className="text-gray-400 text-sm">בחר ספק כדי לנהל קטלוגים</p>
+            <p className="text-zigo-muted text-sm">בחר ספק כדי לנהל קטלוגים</p>
           )}
         </div>
       </div>
