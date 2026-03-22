@@ -1,9 +1,23 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
+from difflib import SequenceMatcher
 
 from database import get_db
 from models import Product, ProductPrice, OrderItem, Supplier
+
+
+def _normalize_heb(text: str) -> str:
+    """Strip common Hebrew plural/feminine suffixes for fuzzy matching."""
+    t = text.strip().lower()
+    for suffix in ('ים', 'ות', 'יות', 'ה', 'ת', 'י'):
+        if t.endswith(suffix) and len(t) > len(suffix) + 2:
+            return t[:-len(suffix)]
+    return t
+
+
+def _similarity(a: str, b: str) -> float:
+    return SequenceMatcher(None, _normalize_heb(a), _normalize_heb(b)).ratio()
 
 router = APIRouter(prefix="/products", tags=["products"])
 
@@ -61,41 +75,33 @@ def list_categories(supplier_id: str | None = None, db: Session = Depends(get_db
 
 @router.get("/compare")
 def compare_products(name: str, db: Session = Depends(get_db)):
-    """Find products with similar names across all suppliers and compare prices."""
-    products = (
+    """Fuzzy-search products across ALL suppliers using Hebrew-aware similarity."""
+    all_products = (
         db.query(Product)
         .options(joinedload(Product.prices), joinedload(Product.supplier))
-        .filter(Product.name.ilike(f"%{name}%"))
         .all()
     )
 
-    # Group by normalized name
-    from collections import defaultdict
-    groups: dict = defaultdict(list)
-    for p in products:
+    results = []
+    for p in all_products:
+        exact = name.lower() in p.name.lower() or p.name.lower() in name.lower()
+        sim = _similarity(name, p.name)
+        if not exact and sim < 0.60:
+            continue
         prices_sorted = sorted(p.prices, key=lambda x: x.recorded_at)
         latest_price = prices_sorted[-1].price if prices_sorted else None
-        groups[p.name.strip()].append({
+        results.append({
             "product_id": p.id,
+            "product_name": p.name,
             "supplier_id": p.supplier_id,
             "supplier_name": p.supplier.name if p.supplier else "",
-            "price": latest_price,
             "unit": p.unit,
-            "code": p.code,
+            "latest_price": latest_price,
+            "similarity": round(max(sim, 1.0 if exact else 0.0), 2),
         })
 
-    result = []
-    for product_name, matches in groups.items():
-        if len(matches) >= 1:
-            valid_prices = [m["price"] for m in matches if m["price"] is not None]
-            min_price = min(valid_prices) if valid_prices else None
-            result.append({
-                "name": product_name,
-                "matches": matches,
-                "min_price": min_price,
-            })
-
-    return sorted(result, key=lambda x: x["name"])
+    results.sort(key=lambda x: (-x["similarity"], x["product_name"]))
+    return results[:30]
 
 
 @router.get("/{product_id}/price-history")

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
+import json
 
 from database import get_db
 from models import Supplier, SupplierBudget
@@ -18,13 +19,28 @@ class SupplierOut(BaseModel):
     id: str
     name: str
     contact: Optional[str]
+    reminder_days: Optional[str] = None
 
     model_config = {"from_attributes": True}
+
+
+class ReminderDaysIn(BaseModel):
+    days: list[int]
 
 
 @router.get("/", response_model=list[SupplierOut])
 def list_suppliers(db: Session = Depends(get_db)):
     return db.query(Supplier).all()
+
+
+@router.put("/{supplier_id}/reminder-days")
+def set_reminder_days(supplier_id: str, body: ReminderDaysIn, db: Session = Depends(get_db)):
+    s = db.query(Supplier).filter(Supplier.id == supplier_id).first()
+    if not s:
+        raise HTTPException(404, "Supplier not found")
+    s.reminder_days = json.dumps(body.days)
+    db.commit()
+    return {"ok": True, "days": body.days}
 
 
 @router.post("/", response_model=SupplierOut)

@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
-import { getSuppliers, getProducts, getCategories, compareProducts, type Supplier, type Product, type ProductComparison } from '../api'
-import { Package, Search, TrendingUp, TrendingDown, Minus, ChevronUp, ChevronDown, SlidersHorizontal, X, GitCompare } from 'lucide-react'
+import { getSuppliers, getProducts, getCategories, compareProducts, addToCart, type Supplier, type Product, type CompareResult } from '../api'
+import { Package, Search, TrendingUp, TrendingDown, Minus, ChevronUp, ChevronDown, SlidersHorizontal, X, GitCompare, ShoppingCart } from 'lucide-react'
+
+type CatalogTab = 'catalog' | 'global'
 
 type SortKey = 'name' | 'price' | 'change'
 type SortDir = 'asc' | 'desc'
@@ -30,6 +32,7 @@ function SortBtn({ col, current, dir, onClick }: { col: SortKey; current: SortKe
 }
 
 export default function Catalog() {
+  const [tab, setTab] = useState<CatalogTab>('catalog')
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [supplierId, setSupplierId] = useState('')   // '' = כל הספקים
   const [products, setProducts] = useState<Product[]>([])
@@ -44,8 +47,12 @@ export default function Catalog() {
   const [showFilters, setShowFilters] = useState(false)
   const [showCompare, setShowCompare] = useState(false)
   const [compareSearch, setCompareSearch] = useState('')
-  const [compareResults, setCompareResults] = useState<ProductComparison[]>([])
+  const [compareResults, setCompareResults] = useState<CompareResult[]>([])
   const [compareLoading, setCompareLoading] = useState(false)
+  const [globalSearch, setGlobalSearch] = useState('')
+  const [globalResults, setGlobalResults] = useState<CompareResult[]>([])
+  const [globalLoading, setGlobalLoading] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
 
   useEffect(() => {
     getSuppliers().then(s => setSuppliers(s))
@@ -125,16 +132,66 @@ export default function Catalog() {
     return () => clearTimeout(timer)
   }, [compareSearch])
 
+  // Global search debounce
+  useEffect(() => {
+    if (!globalSearch.trim() || globalSearch.length < 2) { setGlobalResults([]); return }
+    const t = setTimeout(async () => {
+      setGlobalLoading(true)
+      try { setGlobalResults(await compareProducts(globalSearch)) }
+      finally { setGlobalLoading(false) }
+    }, 400)
+    return () => clearTimeout(t)
+  }, [globalSearch])
+
+  function handleAddToCart(p: Product) {
+    const supplier = suppliers.find(s => s.id === p.supplier_id)
+    addToCart({
+      productId: p.id, productName: p.name,
+      supplierId: p.supplier_id, supplierName: supplier?.name || '',
+      price: p.latest_price ?? 0, unit: p.unit,
+    })
+    setToast(`${p.name} — נוסף לסל`)
+    setTimeout(() => setToast(null), 1500)
+  }
+
+  function handleAddCompareToCart(r: CompareResult) {
+    addToCart({
+      productId: r.product_id, productName: r.product_name,
+      supplierId: r.supplier_id, supplierName: r.supplier_name,
+      price: r.latest_price ?? 0, unit: r.unit,
+    })
+    setToast(`${r.product_name} — נוסף לסל`)
+    setTimeout(() => setToast(null), 1500)
+  }
+
   // Get supplier name for display in all-suppliers view
   const supplierMap = useMemo(() => Object.fromEntries(suppliers.map(s => [s.id, s.name])), [suppliers])
 
   return (
     <div className="space-y-4">
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-zigo-green text-white px-5 py-2.5 rounded-full shadow-lg text-sm font-medium flex items-center gap-2">
+          <ShoppingCart size={14}/>{toast}
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h2 className="text-2xl font-bold flex items-center gap-2 text-zigo-text">
           <Package size={24} className="text-zigo-green"/>קטלוג מוצרים
         </h2>
         <div className="flex gap-2">
+          {/* Tab switcher */}
+          <div className="flex bg-zigo-card border border-zigo-border rounded-lg p-0.5">
+            <button onClick={() => setTab('catalog')}
+              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${tab === 'catalog' ? 'bg-zigo-green text-white' : 'text-zigo-muted hover:text-zigo-green'}`}>
+              קטלוג
+            </button>
+            <button onClick={() => setTab('global')}
+              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${tab === 'global' ? 'bg-zigo-green text-white' : 'text-zigo-muted hover:text-zigo-green'}`}>
+              חיפוש כולל
+            </button>
+          </div>
           <button
             onClick={() => { setShowCompare(v => !v); setShowFilters(false) }}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors
@@ -183,34 +240,83 @@ export default function Catalog() {
           {!compareLoading && compareSearch.length >= 2 && compareResults.length === 0 && (
             <p className="text-center text-zigo-muted text-sm py-2">לא נמצאו מוצרים תואמים</p>
           )}
-          {compareResults.map(group => (
-            <div key={group.name} className="border border-zigo-border rounded-lg overflow-hidden">
-              <div className="bg-zigo-bg px-3 py-2 font-medium text-zigo-text text-sm">{group.name}</div>
+          {compareResults.length > 0 && (
+            <div className="border border-zigo-border rounded-lg overflow-hidden">
               <div className="divide-y divide-zigo-border">
-                {group.matches.map(m => (
-                  <div key={m.product_id} className="flex items-center justify-between px-3 py-2 text-sm hover:bg-zigo-bg transition-colors">
-                    <span className="text-zigo-muted">{m.supplier_name}</span>
-                    <div className="flex items-center gap-2">
-                      {m.unit && <span className="text-xs text-zigo-muted">{m.unit}</span>}
-                      {m.price !== null ? (
-                        <span className={`font-bold ${m.price === group.min_price ? 'text-zigo-green' : 'text-zigo-text'}`}>
-                          ₪{m.price.toFixed(2)}
-                          {m.price === group.min_price && <span className="text-xs mr-1">✓ הזול</span>}
-                        </span>
-                      ) : (
-                        <span className="text-zigo-muted">אין מחיר</span>
-                      )}
+                {compareResults.map(r => (
+                  <div key={r.product_id} className="flex items-center justify-between px-3 py-2 text-sm hover:bg-zigo-bg transition-colors">
+                    <div>
+                      <div className="font-medium text-zigo-text">{r.product_name}</div>
+                      <div className="text-xs text-zigo-muted">{r.supplier_name}{r.unit ? ` · ${r.unit}` : ''}</div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {r.latest_price != null
+                        ? <span className="font-bold text-zigo-text">₪{r.latest_price.toFixed(2)}</span>
+                        : <span className="text-zigo-muted">אין מחיר</span>}
+                      <button onClick={() => handleAddCompareToCart(r)}
+                        className="bg-zigo-green/10 text-zigo-green border border-zigo-green/30 rounded-lg px-2 py-1 text-xs hover:bg-zigo-green hover:text-white transition-colors">
+                        + סל
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-          ))}
+          )}
+        </div>
+      )}
+
+      {/* Global search tab */}
+      {tab === 'global' && (
+        <div className="space-y-3">
+          <div className="relative">
+            <Search size={15} className="absolute right-3 top-3 text-zigo-muted"/>
+            <input
+              autoFocus
+              className="w-full bg-zigo-card border border-zigo-border rounded-xl pr-9 pl-3 py-2.5 text-sm text-zigo-text placeholder:text-zigo-muted focus:outline-none focus:border-zigo-green"
+              placeholder="חפש מוצר בכל הספקים (מינ׳ 2 תווים)..."
+              value={globalSearch}
+              onChange={e => setGlobalSearch(e.target.value)}
+            />
+          </div>
+          {globalLoading && <p className="text-center text-zigo-muted text-sm py-4">מחפש...</p>}
+          {!globalLoading && globalSearch.length >= 2 && globalResults.length === 0 && (
+            <p className="text-center text-zigo-muted text-sm py-4">לא נמצאו תוצאות — נסה ניסוח אחר</p>
+          )}
+          {globalResults.length > 0 && (
+            <div className="bg-zigo-card border border-zigo-border rounded-xl overflow-hidden">
+              <div className="bg-zigo-bg px-4 py-2 border-b border-zigo-border text-xs text-zigo-muted">
+                נמצאו {globalResults.length} תוצאות — ממוינות לפי דמיון
+              </div>
+              <div className="divide-y divide-zigo-border">
+                {globalResults.map(r => (
+                  <div key={r.product_id} className="flex items-center justify-between px-4 py-3 hover:bg-zigo-bg transition-colors">
+                    <div>
+                      <div className="font-medium text-zigo-text">{r.product_name}</div>
+                      <div className="text-xs text-zigo-muted mt-0.5">
+                        <span className="bg-zigo-green/10 text-zigo-green px-1.5 py-0.5 rounded">{r.supplier_name}</span>
+                        {r.unit && <span className="mr-2">{r.unit}</span>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {r.latest_price != null
+                        ? <span className="font-bold text-zigo-text">₪{r.latest_price.toFixed(2)}</span>
+                        : <span className="text-zigo-muted text-sm">אין מחיר</span>}
+                      <button onClick={() => handleAddCompareToCart(r)}
+                        className="bg-zigo-green text-white rounded-lg px-3 py-1.5 text-xs font-medium hover:opacity-90 flex items-center gap-1">
+                        <ShoppingCart size={12}/>הוסף לסל
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* Filters panel */}
-      <div className={`bg-zigo-card border border-zigo-border rounded-xl p-4 space-y-3 transition-all ${showFilters ? '' : 'hidden'}`}>
+      {tab === 'catalog' && <div className={`bg-zigo-card border border-zigo-border rounded-xl p-4 space-y-3 ${showFilters ? '' : 'hidden'}`}>
         <div className="flex flex-wrap gap-3">
 
           {/* Search */}
@@ -262,10 +368,10 @@ export default function Catalog() {
             </button>
           )}
         </div>
-      </div>
+      </div>}
 
-      {/* Quick search bar (always visible) */}
-      {!showFilters && (
+      {/* Quick search bar (always visible in catalog tab) */}
+      {tab === 'catalog' && !showFilters && (
         <div className="relative">
           <Search size={15} className="absolute right-3 top-2.5 text-zigo-muted"/>
           <input
@@ -276,75 +382,88 @@ export default function Catalog() {
       )}
 
       {/* Results count */}
-      <div className="flex items-center justify-between text-sm text-zigo-muted">
-        <span>
-          {loading ? 'טוען...' : `${filtered.length} מוצרים${!supplierId ? ' (כל הספקים)' : ''}`}
-        </span>
-        {!supplierId && filtered.length > 0 && (
-          <span className="text-xs bg-zigo-green/10 text-zigo-green px-2 py-0.5 rounded-full">
-            מציג מכל הספקים
+      {tab === 'catalog' && (
+        <div className="flex items-center justify-between text-sm text-zigo-muted">
+          <span>
+            {loading ? 'טוען...' : `${filtered.length} מוצרים${!supplierId ? ' (כל הספקים)' : ''}`}
           </span>
-        )}
-      </div>
+          {!supplierId && filtered.length > 0 && (
+            <span className="text-xs bg-zigo-green/10 text-zigo-green px-2 py-0.5 rounded-full">
+              מציג מכל הספקים
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Products table */}
-      <div className="bg-zigo-card border border-zigo-border rounded-xl overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-zigo-muted">טוען...</div>
-        ) : filtered.length === 0 ? (
-          <div className="p-8 text-center text-zigo-muted">
-            {products.length === 0 ? 'לא נמצאו מוצרים — העלה קטלוג PDF בעמוד הספקים' : 'לא נמצאו מוצרים עם הסינון הנוכחי'}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-zigo-header border-b border-zigo-border">
-                <tr>
-                  <th className="text-right px-4 py-3 font-medium text-zigo-muted">
-                    <div className="flex items-center gap-1">
-                      מוצר
-                      <SortBtn col="name" current={sortKey} dir={sortDir} onClick={() => toggleSort('name')}/>
-                    </div>
-                  </th>
-                  {!supplierId && (
-                    <th className="text-right px-4 py-3 font-medium text-zigo-muted hidden sm:table-cell">ספק</th>
-                  )}
-                  <th className="text-right px-4 py-3 font-medium text-zigo-muted hidden sm:table-cell">קוד</th>
-                  <th className="text-right px-4 py-3 font-medium text-zigo-muted hidden md:table-cell">קטגוריה</th>
-                  <th className="text-right px-4 py-3 font-medium text-zigo-muted hidden md:table-cell">יחידה</th>
-                  <th className="text-left px-4 py-3 font-medium text-zigo-muted">
-                    <div className="flex items-center gap-1">
-                      <SortBtn col="price" current={sortKey} dir={sortDir} onClick={() => toggleSort('price')}/>
-                      מחיר
-                    </div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((p, i) => (
-                  <tr key={p.id}
-                    className={`border-b border-zigo-border last:border-0 transition-colors hover:bg-zigo-header ${i % 2 === 0 ? '' : 'bg-zigo-header/40'}`}>
-                    <td className="px-4 py-3 font-medium text-zigo-text">{p.name}</td>
+      {tab === 'catalog' && (
+        <div className="bg-zigo-card border border-zigo-border rounded-xl overflow-hidden">
+          {loading ? (
+            <div className="p-8 text-center text-zigo-muted">טוען...</div>
+          ) : filtered.length === 0 ? (
+            <div className="p-8 text-center text-zigo-muted">
+              {products.length === 0 ? 'לא נמצאו מוצרים — העלה קטלוג PDF בעמוד הספקים' : 'לא נמצאו מוצרים עם הסינון הנוכחי'}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-zigo-header border-b border-zigo-border">
+                  <tr>
+                    <th className="text-right px-4 py-3 font-medium text-zigo-muted">
+                      <div className="flex items-center gap-1">
+                        מוצר
+                        <SortBtn col="name" current={sortKey} dir={sortDir} onClick={() => toggleSort('name')}/>
+                      </div>
+                    </th>
                     {!supplierId && (
-                      <td className="px-4 py-3 text-zigo-muted text-xs hidden sm:table-cell">
-                        <span className="bg-zigo-green/10 text-zigo-green px-2 py-0.5 rounded-full">
-                          {supplierMap[p.supplier_id] || '—'}
-                        </span>
-                      </td>
+                      <th className="text-right px-4 py-3 font-medium text-zigo-muted hidden sm:table-cell">ספק</th>
                     )}
-                    <td className="px-4 py-3 text-zigo-muted hidden sm:table-cell">{p.code || '—'}</td>
-                    <td className="px-4 py-3 text-zigo-muted hidden md:table-cell">{p.category || '—'}</td>
-                    <td className="px-4 py-3 text-zigo-muted hidden md:table-cell">{p.unit || '—'}</td>
-                    <td className="px-4 py-3">
-                      <PriceTag price={p.latest_price} change={p.price_change_pct}/>
-                    </td>
+                    <th className="text-right px-4 py-3 font-medium text-zigo-muted hidden sm:table-cell">קוד</th>
+                    <th className="text-right px-4 py-3 font-medium text-zigo-muted hidden md:table-cell">קטגוריה</th>
+                    <th className="text-right px-4 py-3 font-medium text-zigo-muted hidden md:table-cell">יחידה</th>
+                    <th className="text-left px-4 py-3 font-medium text-zigo-muted">
+                      <div className="flex items-center gap-1">
+                        <SortBtn col="price" current={sortKey} dir={sortDir} onClick={() => toggleSort('price')}/>
+                        מחיר
+                      </div>
+                    </th>
+                    <th className="px-2 py-3"></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                </thead>
+                <tbody>
+                  {filtered.map((p, i) => (
+                    <tr key={p.id}
+                      className={`border-b border-zigo-border last:border-0 transition-colors hover:bg-zigo-header ${i % 2 === 0 ? '' : 'bg-zigo-header/40'}`}>
+                      <td className="px-4 py-3 font-medium text-zigo-text">{p.name}</td>
+                      {!supplierId && (
+                        <td className="px-4 py-3 text-zigo-muted text-xs hidden sm:table-cell">
+                          <span className="bg-zigo-green/10 text-zigo-green px-2 py-0.5 rounded-full">
+                            {supplierMap[p.supplier_id] || '—'}
+                          </span>
+                        </td>
+                      )}
+                      <td className="px-4 py-3 text-zigo-muted hidden sm:table-cell">{p.code || '—'}</td>
+                      <td className="px-4 py-3 text-zigo-muted hidden md:table-cell">{p.category || '—'}</td>
+                      <td className="px-4 py-3 text-zigo-muted hidden md:table-cell">{p.unit || '—'}</td>
+                      <td className="px-4 py-3">
+                        <PriceTag price={p.latest_price} change={p.price_change_pct}/>
+                      </td>
+                      <td className="px-2 py-3">
+                        {p.latest_price != null && (
+                          <button onClick={() => handleAddToCart(p)}
+                            className="text-zigo-muted hover:text-zigo-green p-1 transition-colors" title="הוסף לסל">
+                            <ShoppingCart size={15}/>
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

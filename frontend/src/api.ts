@@ -75,6 +75,8 @@ export const getBudget = (supplier_id: string) =>
   req<Budget | null>(`/suppliers/${supplier_id}/budget`)
 export const setBudget = (supplier_id: string, weekly_budget: number) =>
   req<Budget>(`/suppliers/${supplier_id}/budget`, { method: 'PUT', body: JSON.stringify({ weekly_budget }) })
+export const setSupplierReminderDays = (id: string, days: number[]) =>
+  req<{ ok: boolean }>(`/suppliers/${id}/reminder-days`, { method: 'PUT', body: JSON.stringify({ days }) })
 
 // ─── Catalogs ─────────────────────────────────────────────────────────────────
 export const getCatalogs = (supplier_id?: string) =>
@@ -110,7 +112,7 @@ export const getPriceHistory = (product_id: string) =>
   req<PricePoint[]>(`/products/${product_id}/price-history`)
 
 export const compareProducts = (name: string) =>
-  req<ProductComparison[]>(`/products/compare?name=${encodeURIComponent(name)}`)
+  req<CompareResult[]>(`/products/compare?name=${encodeURIComponent(name)}`)
 
 // ─── Orders ───────────────────────────────────────────────────────────────────
 export const getOrders = (supplier_id?: string, product_name?: string) => {
@@ -164,6 +166,44 @@ export const getPriceChanges = (supplier_id: string) =>
 export const getTopProducts = (supplier_id: string) =>
   req<TopProduct[]>(`/analytics/top-products/${supplier_id}`)
 
+// ─── Global Cart (localStorage) ───────────────────────────────────────────────
+export interface CartItem {
+  productId: string
+  productName: string
+  supplierId: string
+  supplierName: string
+  price: number
+  unit?: string
+  quantity: number
+}
+
+export function getCart(): CartItem[] {
+  try { return JSON.parse(localStorage.getItem('zigo-cart') || '[]') } catch { return [] }
+}
+export function saveCart(items: CartItem[]) {
+  localStorage.setItem('zigo-cart', JSON.stringify(items))
+  window.dispatchEvent(new Event('zigo-cart-change'))
+}
+export function addToCart(item: Omit<CartItem, 'quantity'> & { quantity?: number }) {
+  const cart = getCart()
+  const existing = cart.find(i => i.productId === item.productId)
+  if (existing) { existing.quantity += (item.quantity ?? 1); saveCart(cart) }
+  else saveCart([...cart, { ...item, quantity: item.quantity ?? 1 }])
+}
+export function removeFromCart(productId: string) {
+  saveCart(getCart().filter(i => i.productId !== productId))
+}
+export function updateCartQuantity(productId: string, quantity: number) {
+  const cart = getCart()
+  if (quantity <= 0) { saveCart(cart.filter(i => i.productId !== productId)); return }
+  const item = cart.find(i => i.productId === productId)
+  if (item) { item.quantity = quantity; saveCart(cart) }
+}
+export function clearCart() {
+  localStorage.removeItem('zigo-cart')
+  window.dispatchEvent(new Event('zigo-cart-change'))
+}
+
 // ─── Backup ───────────────────────────────────────────────────────────────────
 export async function downloadBackup(): Promise<void> {
   const token = getToken()
@@ -196,7 +236,7 @@ export async function importBackup(json: object): Promise<{ ok: boolean; added: 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface AppUser { id: string; username: string; full_name: string; role: 'admin' | 'viewer'; active?: boolean; created_at?: string }
-export interface Supplier { id: string; name: string; contact?: string }
+export interface Supplier { id: string; name: string; contact?: string; reminder_days?: string }
 export interface Budget { supplier_id: string; weekly_budget: number }
 export interface Catalog { id: string; supplier_id: string; filename: string; parsed: boolean; products_count: number; uploaded_at: string }
 export interface Product { id: string; supplier_id: string; code?: string; name: string; category?: string; unit?: string; latest_price?: number; prev_price?: number; price_change_pct?: number }
@@ -214,6 +254,15 @@ export interface ProductComparison {
   name: string
   min_price: number | null
   matches: { product_id: string; supplier_id: string; supplier_name: string; price: number | null; unit: string | null; code: string | null }[]
+}
+export interface CompareResult {
+  product_id: string
+  product_name: string
+  supplier_id: string
+  supplier_name: string
+  unit?: string
+  latest_price?: number
+  similarity: number
 }
 export interface OrderTemplateItem { id: string; product_id: string; product_name: string; product_unit?: string; quantity: number; unit_price?: number }
 export interface OrderTemplate { id: string; supplier_id: string; name: string; created_at: string; items: OrderTemplateItem[] }

@@ -28,6 +28,7 @@ class Supplier(Base):
     id = Column(String, primary_key=True, default=new_uuid)
     name = Column(String, nullable=False)
     contact = Column(String)
+    reminder_days = Column(String, nullable=True)   # JSON e.g. "[0,3]" where 0=Sun
     created_at = Column(DateTime, server_default=func.now())
 
     catalogs = relationship("Catalog", back_populates="supplier")

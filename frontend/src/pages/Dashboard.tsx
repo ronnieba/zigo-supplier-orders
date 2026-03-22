@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { getSuppliers, getDashboard, setBudget, getAllSuppliersSummary, type Supplier, type Dashboard as DashboardData, type SupplierSummary } from '../api'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { ShoppingCart, AlertTriangle, DollarSign, Pencil, Check, X, LayoutGrid, User } from 'lucide-react'
+import { ShoppingCart, AlertTriangle, DollarSign, Pencil, Check, X, LayoutGrid, User, Bell } from 'lucide-react'
+
+const DAY_NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת']
 
 type Tab = 'single' | 'all'
 
@@ -52,8 +54,34 @@ export default function Dashboard() {
   const totalWeekAll = summary.reduce((s, r) => s + r.week_spent, 0)
   const totalAllTime = summary.reduce((s, r) => s + r.total_spent, 0)
 
+  // Today's reminders
+  const todayDay = new Date().getDay()
+  const todayReminders = suppliers.filter(s => {
+    if (!s.reminder_days) return false
+    try { return JSON.parse(s.reminder_days).includes(todayDay) } catch { return false }
+  })
+
   return (
     <div className="space-y-6">
+      {/* Today's reminder banner */}
+      {todayReminders.length > 0 && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl px-4 py-3 flex items-start gap-3">
+          <Bell size={18} className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0"/>
+          <div>
+            <div className="font-semibold text-amber-800 dark:text-amber-300 text-sm">
+              היום {DAY_NAMES[todayDay]} — יש להזמין מ:
+            </div>
+            <div className="flex flex-wrap gap-2 mt-1.5">
+              {todayReminders.map(s => (
+                <span key={s.id} className="bg-amber-100 dark:bg-amber-800/40 text-amber-800 dark:text-amber-200 text-xs px-2.5 py-1 rounded-full font-medium">
+                  {s.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-2xl font-bold text-zigo-text">לוח בקרה</h2>
 

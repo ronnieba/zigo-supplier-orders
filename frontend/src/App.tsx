@@ -17,14 +17,16 @@ import HelpPage from './pages/HelpPage'
 import BackupPage from './pages/BackupPage'
 import LoginPage from './pages/LoginPage'
 import UsersPage from './pages/UsersPage'
+import CartPage from './pages/CartPage'
 import ZigoLogo from './ZigoLogo'
-import { getAuthStatus, getToken, setToken, clearToken, getCurrentUser, setCurrentUser, login, type AppUser } from './api'
+import { getAuthStatus, getToken, setToken, clearToken, getCurrentUser, setCurrentUser, login, getCart, type AppUser } from './api'
 
 const NAV = [
   { to: '/', icon: LayoutDashboard, label: 'לוח בקרה' },
   { to: '/suppliers', icon: Truck, label: 'ספקים' },
   { to: '/catalog', icon: Package, label: 'קטלוג' },
   { to: '/order/new', icon: ShoppingCart, label: 'הזמנה חדשה' },
+  { to: '/cart', icon: ShoppingCart, label: 'סל קניות', cart: true },
   { to: '/orders', icon: History, label: 'היסטוריה' },
   { to: '/analytics', icon: BarChart2, label: 'אנליטיקות' },
   { to: '/calendar', icon: Calendar, label: 'לוח שנה' },
@@ -57,8 +59,16 @@ export default function App() {
   const [reminder, setReminder] = useState<ReminderSettings>(loadReminder)
   const [showReminderPanel, setShowReminderPanel] = useState(false)
   const [reminderToast, setReminderToast] = useState<string | null>(null)
+  const [cartCount, setCartCount] = useState(() => getCart().length)
 
   const authed = authMode === 'open' || !!currentUser
+
+  // ── Cart badge ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const update = () => setCartCount(getCart().length)
+    window.addEventListener('zigo-cart-change', update)
+    return () => window.removeEventListener('zigo-cart-change', update)
+  }, [])
 
   // ── Theme ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -245,26 +255,37 @@ export default function App() {
 
           {/* Desktop nav */}
           <nav className="hidden md:flex justify-center gap-3 mt-3 pb-1 flex-wrap">
-            {visibleNav.map(({ to, icon: Icon, label }) => (
-              <NavLink key={to} to={to} end={to === '/'}
-                className={() => `flex flex-col items-center gap-1 group transition-all`}>
-                {({ isActive }) => (
-                  <>
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all
-                      ${isActive
-                        ? 'bg-zigo-green border-zigo-green text-white shadow-md'
-                        : 'bg-zigo-card border-zigo-border text-zigo-muted group-hover:border-zigo-green group-hover:text-zigo-green'
-                      }`}>
-                      <Icon size={20}/>
-                    </div>
-                    <span className={`text-xs font-medium transition-colors
-                      ${isActive ? 'text-zigo-green' : 'text-zigo-muted group-hover:text-zigo-green'}`}>
-                      {label}
-                    </span>
-                  </>
-                )}
-              </NavLink>
-            ))}
+            {visibleNav.map((item) => {
+              const { to, icon: Icon, label } = item
+              const isCartItem = 'cart' in item && item.cart
+              return (
+                <NavLink key={to} to={to} end={to === '/'}
+                  className={() => `flex flex-col items-center gap-1 group transition-all`}>
+                  {({ isActive }) => (
+                    <>
+                      <div className="relative">
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all
+                          ${isActive
+                            ? 'bg-zigo-green border-zigo-green text-white shadow-md'
+                            : 'bg-zigo-card border-zigo-border text-zigo-muted group-hover:border-zigo-green group-hover:text-zigo-green'
+                          }`}>
+                          <Icon size={20}/>
+                        </div>
+                        {isCartItem && cartCount > 0 && (
+                          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
+                            {cartCount > 9 ? '9+' : cartCount}
+                          </span>
+                        )}
+                      </div>
+                      <span className={`text-xs font-medium transition-colors
+                        ${isActive ? 'text-zigo-green' : 'text-zigo-muted group-hover:text-zigo-green'}`}>
+                        {label}
+                      </span>
+                    </>
+                  )}
+                </NavLink>
+              )
+            })}
           </nav>
         </header>
 
@@ -315,6 +336,7 @@ export default function App() {
             <Route path="/analytics" element={<Analytics/>}/>
             <Route path="/suppliers" element={<Suppliers/>}/>
             <Route path="/calendar" element={<CalendarPage/>}/>
+            <Route path="/cart" element={<CartPage/>}/>
             <Route path="/users" element={<UsersPage/>}/>
             <Route path="/backup" element={<BackupPage/>}/>
             <Route path="/help" element={<HelpPage/>}/>

@@ -11,6 +11,7 @@ export default function OrderHistory() {
   const [orders, setOrders] = useState<Order[]>([])
   const [expanded, setExpanded] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [hidePrices, setHidePrices] = useState(false)
 
   useEffect(() => {
     getSuppliers().then(s => {
@@ -50,9 +51,13 @@ export default function OrderHistory() {
     let text = `*הזמנה — ${supplierName}*\n`
     text += `שבוע: ${order.week_start}\n\n`
     for (const item of order.items) {
-      text += `• ${item.product_name}  ×${item.quantity}${item.product_unit ? ' ' + item.product_unit : ''}  ₪${item.total_price.toFixed(2)}\n`
+      if (hidePrices) {
+        text += `• ${item.product_name}  ×${item.quantity}${item.product_unit ? ' ' + item.product_unit : ''}\n`
+      } else {
+        text += `• ${item.product_name}  ×${item.quantity}${item.product_unit ? ' ' + item.product_unit : ''}  ₪${item.total_price.toFixed(2)}\n`
+      }
     }
-    text += `\n*סה"כ: ₪${order.total_cost?.toFixed(2)}*`
+    if (!hidePrices) text += `\n*סה"כ: ₪${order.total_cost?.toFixed(2)}*`
     if (order.notes) text += `\n\nהערות: ${order.notes}`
 
     const encoded = encodeURIComponent(text)
@@ -112,6 +117,12 @@ export default function OrderHistory() {
           <Download size={15} className="text-green-500"/>
           ייצוא Excel
         </button>
+
+        <label className="flex items-center gap-2 text-sm cursor-pointer text-zigo-muted mr-1">
+          <input type="checkbox" checked={hidePrices} onChange={e => setHidePrices(e.target.checked)}
+            className="accent-zigo-green"/>
+          הסתר מחירים בייצוא
+        </label>
       </div>
 
       {/* Orders list */}

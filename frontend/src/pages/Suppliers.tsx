@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
-import { getSuppliers, createSupplier, deleteSupplier, updateSupplier, uploadCatalog, getCatalogs, deleteCatalog, type Supplier, type Catalog } from '../api'
-import { Truck, Plus, Trash2, Upload, FileText, Image, Pencil } from 'lucide-react'
+import { getSuppliers, createSupplier, deleteSupplier, updateSupplier, uploadCatalog, getCatalogs, deleteCatalog, setSupplierReminderDays, type Supplier, type Catalog } from '../api'
+import { Truck, Plus, Trash2, Upload, FileText, Image, Pencil, Bell } from 'lucide-react'
+
+const DAY_LABELS = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳']
 
 export default function Suppliers() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
@@ -108,6 +110,33 @@ export default function Suppliers() {
                       onChange={e => setEditContact(e.target.value)}
                       placeholder="פרטי קשר (אופציונלי)"
                     />
+                    {/* Reminder days */}
+                    <div>
+                      <div className="flex items-center gap-1 text-xs text-zigo-muted mt-2 mb-1">
+                        <Bell size={11}/>ימי הזמנה
+                      </div>
+                      <div className="flex gap-1 flex-wrap">
+                        {DAY_LABELS.map((label, idx) => {
+                          const activeDays: number[] = (() => { try { return JSON.parse(s.reminder_days || '[]') } catch { return [] } })()
+                          const isActive = activeDays.includes(idx)
+                          return (
+                            <button
+                              key={idx}
+                              onClick={async () => {
+                                const newDays = isActive ? activeDays.filter(d => d !== idx) : [...activeDays, idx]
+                                await setSupplierReminderDays(s.id, newDays)
+                                load()
+                              }}
+                              className={`w-8 h-7 rounded text-xs font-medium transition-colors ${
+                                isActive ? 'bg-zigo-green text-white' : 'border border-zigo-border text-zigo-muted hover:border-zigo-green hover:text-zigo-green'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
                     <div className="flex gap-2 mt-1">
                       <button
                         onClick={() => saveEdit(s.id)}
@@ -128,6 +157,20 @@ export default function Suppliers() {
                     <div>
                       <div className="font-medium text-zigo-text">{s.name}</div>
                       {s.contact && <div className="text-xs text-zigo-muted">{s.contact}</div>}
+                      {s.reminder_days && (() => {
+                        try {
+                          const days: number[] = JSON.parse(s.reminder_days)
+                          if (days.length === 0) return null
+                          return (
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <Bell size={10} className="text-amber-500"/>
+                              <span className="text-xs text-amber-600 dark:text-amber-400">
+                                {days.map(d => DAY_LABELS[d]).join(' ')}
+                              </span>
+                            </div>
+                          )
+                        } catch { return null }
+                      })()}
                     </div>
                     <div className="flex items-center gap-1">
                       <button
