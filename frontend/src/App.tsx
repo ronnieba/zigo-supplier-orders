@@ -18,7 +18,7 @@ import BackupPage from './pages/BackupPage'
 import LoginPage from './pages/LoginPage'
 import UsersPage from './pages/UsersPage'
 import ZigoLogo from './ZigoLogo'
-import { getAuthStatus, getToken, clearToken, getCurrentUser, setCurrentUser, type AppUser } from './api'
+import { getAuthStatus, getToken, setToken, clearToken, getCurrentUser, setCurrentUser, login, type AppUser } from './api'
 
 const NAV = [
   { to: '/', icon: LayoutDashboard, label: 'לוח בקרה' },
@@ -69,7 +69,19 @@ export default function App() {
   // ── Auth status check ──────────────────────────────────────────────────────
   useEffect(() => {
     getAuthStatus()
-      .then(({ mode }) => setAuthMode(mode))
+      .then(({ mode }) => {
+        setAuthMode(mode)
+        // In open mode, auto-login so pages know the user is admin
+        if (mode === 'open' && !getCurrentUser()) {
+          login('', '').then(res => {
+            if (res.ok && res.token && res.user) {
+              setToken(res.token)
+              setCurrentUser(res.user)
+              setUser(res.user)
+            }
+          })
+        }
+      })
       .catch(() => setAuthMode('open'))
   }, [])
 
