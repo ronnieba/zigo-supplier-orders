@@ -7,12 +7,12 @@ from fastapi.responses import FileResponse, JSONResponse
 from database import engine, Base
 import models
 
-from api import suppliers, catalogs, products, orders, analytics, templates, backup, auth
-from api.auth import verify_token, get_app_password
+from api import suppliers, catalogs, products, orders, analytics, templates, backup, auth, users
+from api.auth import verify_token, get_auth_mode
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="מערכת הזמנות ספקים - ZIGO", version="1.0.0")
+app = FastAPI(title="מערכת הזמנות ספקים - ZIGO", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -23,31 +23,65 @@ app.add_middleware(
 )
 
 
-# ─── Auth Middleware ───────────────────────────────────────────────────────────
-SKIP_AUTH_PATHS = {"/api/auth/login", "/api/auth/check", "/api/health"}
+# ─── Auth + Role Middleware ────────────────────────────────────────────────────
+
+OPEN_PATHS = {
+    "/api/auth/login",
+    "/api/auth/status",
+    "/api/health",
+    "/api/users/setup",   # first-run setup requires no auth
+}
+
+VIEWER_BLOCKED_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+# Viewers can still read everything; only write ops are blocked
+
+
+def _get_db_quick():
+    """Get a DB session outside of DI for use in middleware."""
+    from database import SessionLocal
+    return SessionLocal()
+
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
-    if not get_app_password():
-        return await call_next(request)  # auth disabled globally
-
     path = request.url.path
-    # allow non-API paths (static files, SPA)
+
+    # Non-API paths → pass through (static files, SPA)
     if not path.startswith("/api/"):
         return await call_next(request)
-    # allow public API paths
-    if path in SKIP_AUTH_PATHS:
+
+    # Always-open paths
+    if path in OPEN_PATHS:
         return await call_next(request)
 
-    token = request.headers.get("Authorization", "").replace("Bearer ", "").strip()
-    if not verify_token(token):
-        return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+    db = _get_db_quick()
+    try:
+        mode = get_auth_mode(db)
 
-    return await call_next(request)
+        if mode == "open":
+            request.state.user = {"uid": "open", "role": "admin"}
+            return await call_next(request)
+
+        token = request.headers.get("Authorization", "").replace("Bearer ", "").strip()
+        user_payload = verify_token(token, db)
+
+        if not user_payload:
+            return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+
+        request.state.user = user_payload
+
+        # Viewer role: block write operations
+        if user_payload.get("role") == "viewer" and request.method in VIEWER_BLOCKED_METHODS:
+            return JSONResponse({"detail": "הרשאות צפייה בלבד — פעולה זו דורשת מנהל"}, status_code=403)
+
+        return await call_next(request)
+    finally:
+        db.close()
 
 
 # ─── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(auth.router, prefix="/api")
+app.include_router(users.router, prefix="/api")
 app.include_router(suppliers.router, prefix="/api")
 app.include_router(catalogs.router, prefix="/api")
 app.include_router(products.router, prefix="/api")
@@ -59,7 +93,7 @@ app.include_router(backup.router, prefix="/api")
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "message": "ZIGO Supplier Orders API"}
+    return {"status": "ok", "message": "ZIGO Supplier Orders API v2"}
 
 
 # ─── Serve React SPA ───────────────────────────────────────────────────────────

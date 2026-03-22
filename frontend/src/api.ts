@@ -34,11 +34,32 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
-export const checkAuth = () => req<{ auth_required: boolean }>('/auth/check')
-export const login = (password: string) =>
-  req<{ ok: boolean; token: string | null; auth_required: boolean }>('/auth/login', {
-    method: 'POST', body: JSON.stringify({ password }),
+export const getAuthStatus = () => req<{ mode: 'open' | 'legacy' | 'multi' }>('/auth/status')
+export const login = (username: string, password: string) =>
+  req<{ ok: boolean; token: string | null; user: AppUser | null }>('/auth/login', {
+    method: 'POST', body: JSON.stringify({ username, password }),
   })
+
+export function getCurrentUser(): AppUser | null {
+  try { return JSON.parse(localStorage.getItem('zigo-user') || 'null') } catch { return null }
+}
+export function setCurrentUser(u: AppUser | null) {
+  if (u) localStorage.setItem('zigo-user', JSON.stringify(u))
+  else localStorage.removeItem('zigo-user')
+}
+
+// ─── Users ────────────────────────────────────────────────────────────────────
+export const getUsers = () => req<AppUser[]>('/users/')
+export const createUser = (data: { username: string; full_name: string; role: string; password: string }) =>
+  req<AppUser>('/users/', { method: 'POST', body: JSON.stringify(data) })
+export const setupFirstAdmin = (data: { username: string; full_name: string; role: string; password: string }) =>
+  req<AppUser>('/users/setup', { method: 'POST', body: JSON.stringify(data) })
+export const updateUser = (id: string, data: { full_name?: string; role?: string; active?: boolean }) =>
+  req<AppUser>(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+export const resetPassword = (id: string, data: { new_password: string; current_password?: string }) =>
+  req<{ ok: boolean }>(`/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify(data) })
+export const deleteUser = (id: string) =>
+  req(`/users/${id}`, { method: 'DELETE' })
 
 // ─── Suppliers ────────────────────────────────────────────────────────────────
 export const getSuppliers = () => req<Supplier[]>('/suppliers/')
@@ -174,6 +195,7 @@ export async function importBackup(json: object): Promise<{ ok: boolean; added: 
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+export interface AppUser { id: string; username: string; full_name: string; role: 'admin' | 'viewer'; active?: boolean; created_at?: string }
 export interface Supplier { id: string; name: string; contact?: string }
 export interface Budget { supplier_id: string; weekly_budget: number }
 export interface Catalog { id: string; supplier_id: string; filename: string; parsed: boolean; products_count: number; uploaded_at: string }

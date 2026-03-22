@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import {
   LayoutDashboard, Package, ShoppingCart, History, BarChart2,
   Truck, Menu, X, Sun, Moon, Calendar, HelpCircle, Database,
-  Bell, BellOff, LogOut
+  Bell, BellOff, LogOut, Users
 } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import Catalog from './pages/Catalog'
@@ -16,8 +16,9 @@ import CalendarPage from './pages/CalendarPage'
 import HelpPage from './pages/HelpPage'
 import BackupPage from './pages/BackupPage'
 import LoginPage from './pages/LoginPage'
+import UsersPage from './pages/UsersPage'
 import ZigoLogo from './ZigoLogo'
-import { checkAuth, getToken, clearToken } from './api'
+import { getAuthStatus, getToken, clearToken, getCurrentUser, setCurrentUser, type AppUser } from './api'
 
 const NAV = [
   { to: '/', icon: LayoutDashboard, label: 'לוח בקרה' },
@@ -27,7 +28,8 @@ const NAV = [
   { to: '/orders', icon: History, label: 'היסטוריה' },
   { to: '/analytics', icon: BarChart2, label: 'אנליטיקות' },
   { to: '/calendar', icon: Calendar, label: 'לוח שנה' },
-  { to: '/backup', icon: Database, label: 'גיבוי' },
+  { to: '/users', icon: Users, label: 'משתמשים', adminOnly: true },
+  { to: '/backup', icon: Database, label: 'גיבוי', adminOnly: true },
   { to: '/help', icon: HelpCircle, label: 'עזרה' },
 ]
 
@@ -50,11 +52,13 @@ function loadReminder(): ReminderSettings {
 export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [isDark, setIsDark] = useState(() => localStorage.getItem('zigo-theme') !== 'light')
-  const [authRequired, setAuthRequired] = useState<boolean | null>(null)
-  const [authed, setAuthed] = useState(false)
+  const [authMode, setAuthMode] = useState<'open' | 'legacy' | 'multi' | null>(null)
+  const [currentUser, setUser] = useState<AppUser | null>(getCurrentUser)
   const [reminder, setReminder] = useState<ReminderSettings>(loadReminder)
   const [showReminderPanel, setShowReminderPanel] = useState(false)
   const [reminderToast, setReminderToast] = useState<string | null>(null)
+
+  const authed = authMode === 'open' || !!currentUser
 
   // ── Theme ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -62,19 +66,11 @@ export default function App() {
     localStorage.setItem('zigo-theme', isDark ? 'dark' : 'light')
   }, [isDark])
 
-  // ── Auth check ─────────────────────────────────────────────────────────────
+  // ── Auth status check ──────────────────────────────────────────────────────
   useEffect(() => {
-    checkAuth().then(({ auth_required }) => {
-      setAuthRequired(auth_required)
-      if (!auth_required) {
-        setAuthed(true)
-      } else {
-        setAuthed(!!getToken())
-      }
-    }).catch(() => {
-      setAuthRequired(false)
-      setAuthed(true)
-    })
+    getAuthStatus()
+      .then(({ mode }) => setAuthMode(mode))
+      .catch(() => setAuthMode('open'))
   }, [])
 
   // ── Reminder check ─────────────────────────────────────────────────────────
@@ -100,20 +96,29 @@ export default function App() {
 
   function handleLogout() {
     clearToken()
-    setAuthed(false)
+    setCurrentUser(null)
+    setUser(null)
+  }
+
+  function handleLogin(user: AppUser) {
+    setUser(user)
+    setCurrentUser(user)
   }
 
   // ── Loading ────────────────────────────────────────────────────────────────
-  if (authRequired === null) return null
+  if (authMode === null) return null
 
   // ── Login gate ─────────────────────────────────────────────────────────────
-  if (authRequired && !authed) {
+  if (!authed) {
     return (
       <div className={isDark ? 'dark' : ''}>
-        <LoginPage onLogin={() => setAuthed(true)}/>
+        <LoginPage onLogin={(user: AppUser) => handleLogin(user)}/>
       </div>
     )
   }
+
+  const isAdmin = currentUser?.role === 'admin' || authMode === 'open'
+  const visibleNav = NAV.filter(n => !('adminOnly' in n && n.adminOnly) || isAdmin)
 
   return (
     <div className={isDark ? 'dark' : ''}>
@@ -200,8 +205,18 @@ export default function App() {
                 {isDark ? <Sun size={18}/> : <Moon size={18}/>}
               </button>
 
-              {/* Logout (only if auth enabled) */}
-              {authRequired && (
+              {/* Current user chip */}
+              {currentUser && authMode !== 'open' && (
+                <div className="hidden sm:flex items-center gap-1.5 bg-zigo-card border border-zigo-border rounded-full px-3 py-1 text-xs text-zigo-muted">
+                  <span className="w-5 h-5 rounded-full bg-zigo-green/20 text-zigo-green flex items-center justify-center text-[10px] font-bold">
+                    {currentUser.full_name.charAt(0)}
+                  </span>
+                  {currentUser.full_name}
+                </div>
+              )}
+
+              {/* Logout */}
+              {authMode !== 'open' && (
                 <button onClick={handleLogout}
                   className="p-2 rounded-full text-zigo-muted hover:text-red-500 hover:bg-zigo-card transition-colors"
                   title="התנתק">
@@ -218,7 +233,7 @@ export default function App() {
 
           {/* Desktop nav */}
           <nav className="hidden md:flex justify-center gap-3 mt-3 pb-1 flex-wrap">
-            {NAV.map(({ to, icon: Icon, label }) => (
+            {visibleNav.map(({ to, icon: Icon, label }) => (
               <NavLink key={to} to={to} end={to === '/'}
                 className={() => `flex flex-col items-center gap-1 group transition-all`}>
                 {({ isActive }) => (
@@ -244,7 +259,7 @@ export default function App() {
         {/* Mobile menu */}
         {menuOpen && (
           <nav className="md:hidden bg-zigo-header border-b border-zigo-border flex flex-col no-print">
-            {NAV.map(({ to, icon: Icon, label }) => (
+            {visibleNav.map(({ to, icon: Icon, label }) => (
               <NavLink key={to} to={to} end={to === '/'}
                 onClick={() => setMenuOpen(false)}
                 className={({ isActive }) =>
@@ -288,6 +303,7 @@ export default function App() {
             <Route path="/analytics" element={<Analytics/>}/>
             <Route path="/suppliers" element={<Suppliers/>}/>
             <Route path="/calendar" element={<CalendarPage/>}/>
+            <Route path="/users" element={<UsersPage/>}/>
             <Route path="/backup" element={<BackupPage/>}/>
             <Route path="/help" element={<HelpPage/>}/>
           </Routes>

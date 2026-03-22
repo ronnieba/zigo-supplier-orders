@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, Integer, Date, DateTime, Boolean, ForeignKey, Text
+from sqlalchemy import Column, String, Float, Integer, Date, DateTime, Boolean, ForeignKey, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
@@ -8,6 +8,18 @@ from database import Base
 
 def new_uuid():
     return str(uuid.uuid4())
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    username = Column(String, nullable=False, unique=True)   # login name
+    full_name = Column(String, nullable=False)
+    role = Column(String, nullable=False, default="viewer")  # admin / viewer
+    password_hash = Column(String, nullable=False)
+    active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, server_default=func.now())
 
 
 class Supplier(Base):

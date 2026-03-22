@@ -4,7 +4,7 @@ import {
   Truck, Calendar, ChevronDown, ChevronUp, MessageCircle,
   Printer, AlertTriangle, DollarSign, Search,
   Smartphone, HelpCircle, Lightbulb, CheckCircle2,
-  Download, Bell, Database, ShieldCheck
+  Download, Bell, Database, ShieldCheck, Users
 } from 'lucide-react'
 
 interface Section {
@@ -285,6 +285,41 @@ const SECTIONS: Section[] = [
     ]
   },
   {
+    id: 'users',
+    icon: Users,
+    iconColor: 'text-purple-400',
+    title: 'ניהול משתמשים',
+    subtitle: 'הוספה, עריכה, תפקידים וסיסמאות',
+    items: [
+      {
+        q: 'מה ההבדל בין "מנהל" ל"צפייה בלבד"?',
+        a: (
+          <ul className="space-y-1 mt-1">
+            <li><span className="text-zigo-green font-medium">מנהל</span> — גישה מלאה: יצירה, עריכה, מחיקה, ניהול משתמשים וגיבוי</li>
+            <li><span className="text-blue-400 font-medium">צפייה בלבד</span> — קריאת כל הנתונים ללא אפשרות שינוי</li>
+          </ul>
+        )
+      },
+      {
+        q: 'איך מוסיפים משתמש חדש?',
+        a: 'עבור לדף "משתמשים" (מנהל בלבד), לחץ "+ הוסף משתמש", מלא שם משתמש, שם מלא, תפקיד וסיסמה.',
+        tip: 'שם המשתמש חייב להיות ייחודי ומשמש לכניסה. השם המלא מוצג בממשק.'
+      },
+      {
+        q: 'איך מאפסים סיסמה של משתמש?',
+        a: 'בדף "משתמשים", לחץ "שנה סיסמה" על המשתמש הרצוי. מנהל יכול לאפס סיסמה של כל משתמש.'
+      },
+      {
+        q: 'איך מושבתים משתמש ללא מחיקה?',
+        a: 'לחץ "השבת" על המשתמש — הוא לא יוכל להתחבר אך הנתונים שלו נשמרים. ניתן להפעיל מחדש בכל עת.'
+      },
+      {
+        q: 'מה קורה אם אין משתמשים?',
+        a: 'אם לא נוצרו משתמשים, המערכת פועלת בהתאם ל-APP_PASSWORD (אם מוגדר) או פתוחה לחלוטין. בדף הכניסה יש אפשרות ליצור מנהל ראשון.'
+      },
+    ]
+  },
+  {
     id: 'auth',
     icon: ShieldCheck,
     iconColor: 'text-red-400',
@@ -292,13 +327,18 @@ const SECTIONS: Section[] = [
     subtitle: 'אבטחת גישה למערכת',
     items: [
       {
-        q: 'איך מגדירים סיסמה למערכת?',
-        a: 'ב-Render.com, הוסף משתנה סביבה בשם APP_PASSWORD עם הסיסמה הרצויה. לאחר הפריסה, כל גישה למערכת תדרוש כניסה עם הסיסמה.',
-        tip: 'אם APP_PASSWORD לא מוגדר, המערכת פתוחה ללא סיסמה (מתאים לרשת מקומית פרטית)'
+        q: 'מה השיטות האפשריות לאבטחה?',
+        a: (
+          <ul className="space-y-1.5 mt-1">
+            <li><span className="text-zigo-muted font-medium">פתוח</span> — ללא APP_PASSWORD וללא משתמשים: כל מי שיש לו URL יכול להשתמש</li>
+            <li><span className="text-orange-400 font-medium">סיסמה אחידה</span> — הגדר APP_PASSWORD ב-Render: כניסה עם סיסמה אחת</li>
+            <li><span className="text-zigo-green font-medium">ניהול משתמשים</span> — צור משתמשים בדף "משתמשים": כל אחד עם שם משתמש, סיסמה ותפקיד</li>
+          </ul>
+        )
       },
       {
         q: 'איך מתנתקים?',
-        a: 'לחץ על אייקון ה-LogOut (חץ יציאה) בפינה הימנית העליונה.'
+        a: 'לחץ על אייקון החץ (התנתקות) בפינה הימנית העליונה.'
       },
     ]
   },
