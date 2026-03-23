@@ -63,11 +63,11 @@ export const deleteUser = (id: string) =>
 
 // ─── Suppliers ────────────────────────────────────────────────────────────────
 export const getSuppliers = () => req<Supplier[]>('/suppliers/')
-export const createSupplier = (data: { name: string; contact?: string; whatsapp?: string }) =>
+export const createSupplier = (data: { name: string; contact?: string; whatsapp?: string; email?: string; address?: string; notes?: string }) =>
   req<Supplier>('/suppliers/', { method: 'POST', body: JSON.stringify(data) })
 export const deleteSupplier = (id: string) =>
   req(`/suppliers/${id}`, { method: 'DELETE' })
-export const updateSupplier = (id: string, data: { name: string; contact?: string; whatsapp?: string }) =>
+export const updateSupplier = (id: string, data: { name: string; contact?: string; whatsapp?: string; email?: string; address?: string; notes?: string }) =>
   req<Supplier>(`/suppliers/${id}`, { method: 'PUT', body: JSON.stringify(data) })
 
 // ─── Budget ───────────────────────────────────────────────────────────────────
@@ -236,7 +236,15 @@ export async function importBackup(json: object): Promise<{ ok: boolean; added: 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface AppUser { id: string; username: string; full_name: string; role: 'admin' | 'viewer'; active?: boolean; created_at?: string }
-export interface Supplier { id: string; name: string; contact?: string; whatsapp?: string; reminder_days?: string }
+export interface Supplier {
+  id: string; name: string
+  contact?: string       // טלפון
+  whatsapp?: string      // וואטסאפ
+  email?: string         // דוא"ל
+  address?: string       // כתובת
+  notes?: string         // הערות
+  reminder_days?: string // JSON days
+}
 export interface Budget { supplier_id: string; weekly_budget: number }
 export interface Catalog { id: string; supplier_id: string; filename: string; parsed: boolean; products_count: number; uploaded_at: string }
 export interface Product { id: string; supplier_id: string; code?: string; name: string; category?: string; unit?: string; latest_price?: number; prev_price?: number; price_change_pct?: number }

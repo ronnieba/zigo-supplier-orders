@@ -27,8 +27,11 @@ class Supplier(Base):
 
     id = Column(String, primary_key=True, default=new_uuid)
     name = Column(String, nullable=False)
-    contact = Column(String)
+    contact = Column(String)             # phone / general contact
     whatsapp = Column(String, nullable=True)
+    email = Column(String, nullable=True)
+    address = Column(String, nullable=True)
+    notes = Column(Text, nullable=True)
     reminder_days = Column(String, nullable=True)   # JSON e.g. "[0,3]" where 0=Sun
     created_at = Column(DateTime, server_default=func.now())
 

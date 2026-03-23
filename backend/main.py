@@ -26,6 +26,15 @@ def _run_migrations():
         if "whatsapp" not in cols:
             conn.execute(text("ALTER TABLE suppliers ADD COLUMN whatsapp TEXT"))
             conn.commit()
+        if "email" not in cols:
+            conn.execute(text("ALTER TABLE suppliers ADD COLUMN email TEXT"))
+            conn.commit()
+        if "address" not in cols:
+            conn.execute(text("ALTER TABLE suppliers ADD COLUMN address TEXT"))
+            conn.commit()
+        if "notes" not in cols:
+            conn.execute(text("ALTER TABLE suppliers ADD COLUMN notes TEXT"))
+            conn.commit()
 
 
 _run_migrations()

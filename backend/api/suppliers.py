@@ -14,13 +14,19 @@ class SupplierCreate(BaseModel):
     name: str
     contact: Optional[str] = None
     whatsapp: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class SupplierOut(BaseModel):
     id: str
     name: str
-    contact: Optional[str]
+    contact: Optional[str] = None
     whatsapp: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    notes: Optional[str] = None
     reminder_days: Optional[str] = None
 
     model_config = {"from_attributes": True}
@@ -47,7 +53,8 @@ def set_reminder_days(supplier_id: str, body: ReminderDaysIn, db: Session = Depe
 
 @router.post("/", response_model=SupplierOut)
 def create_supplier(body: SupplierCreate, db: Session = Depends(get_db)):
-    s = Supplier(name=body.name, contact=body.contact, whatsapp=body.whatsapp)
+    s = Supplier(name=body.name, contact=body.contact, whatsapp=body.whatsapp,
+                 email=body.email, address=body.address, notes=body.notes)
     db.add(s)
     db.commit()
     db.refresh(s)
@@ -72,6 +79,9 @@ def update_supplier(supplier_id: str, body: SupplierCreate, db: Session = Depend
     s.name = body.name
     s.contact = body.contact
     s.whatsapp = body.whatsapp
+    s.email = body.email
+    s.address = body.address
+    s.notes = body.notes
     db.commit()
     db.refresh(s)
     return s
