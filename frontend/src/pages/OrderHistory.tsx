@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getSuppliers, getOrders, deleteOrder, confirmOrder, exportOrdersUrl, type Supplier, type Order } from '../api'
-import { History, ChevronDown, ChevronUp, Trash2, CheckCircle, MessageCircle, Printer, Search, Download, X } from 'lucide-react'
+import { History, ChevronDown, ChevronUp, Trash2, CheckCircle, MessageCircle, Printer, Search, Download, X, Phone } from 'lucide-react'
 
 export default function OrderHistory() {
   const navigate = useNavigate()
@@ -12,6 +12,7 @@ export default function OrderHistory() {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [hidePrices, setHidePrices] = useState(false)
+  const [waModal, setWaModal] = useState<{ order: Order; phone: string; text: string } | null>(null)
 
   useEffect(() => {
     getSuppliers().then(s => {
@@ -43,11 +44,15 @@ export default function OrderHistory() {
     load()
   }
 
-  function sendWhatsApp(order: Order) {
+  function formatPhoneForWA(raw: string): string {
+    const digits = raw.replace(/\D/g, '')
+    if (digits.startsWith('0')) return '972' + digits.slice(1)
+    return digits
+  }
+
+  function buildWhatsAppText(order: Order): string {
     const supplier = suppliers.find(s => s.id === order.supplier_id)
     const supplierName = supplier?.name || 'ספק'
-    const phone = supplier?.contact?.replace(/\D/g, '') || ''
-
     let text = `*הזמנה — ${supplierName}*\n`
     text += `שבוע: ${order.week_start}\n\n`
     for (const item of order.items) {
@@ -59,10 +64,22 @@ export default function OrderHistory() {
     }
     if (!hidePrices) text += `\n*סה"כ: ₪${order.total_cost?.toFixed(2)}*`
     if (order.notes) text += `\n\nהערות: ${order.notes}`
+    return text
+  }
 
+  function openWhatsAppModal(order: Order) {
+    const supplier = suppliers.find(s => s.id === order.supplier_id)
+    const rawPhone = supplier?.whatsapp || supplier?.contact || ''
+    const phone = formatPhoneForWA(rawPhone)
+    const text = buildWhatsAppText(order)
+    setWaModal({ order, phone, text })
+  }
+
+  function sendWhatsApp(phone: string, text: string) {
     const encoded = encodeURIComponent(text)
     const url = phone ? `https://wa.me/${phone}?text=${encoded}` : `https://wa.me/?text=${encoded}`
     window.open(url, '_blank')
+    setWaModal(null)
   }
 
   function handleExcel() {
@@ -193,18 +210,22 @@ export default function OrderHistory() {
                       </div>
                     )}
 
-                    <div className="flex flex-wrap gap-2 p-3 border-t border-zigo-border bg-zigo-bg">
+                    <div className="flex flex-wrap gap-2 p-3 border-t border-zigo-border bg-zigo-bg items-center">
+                      <label className="flex items-center gap-1.5 text-xs text-zigo-muted cursor-pointer">
+                        <input type="checkbox" checked={hidePrices} onChange={e => setHidePrices(e.target.checked)} className="rounded"/>
+                        הסתר מחירים בייצוא
+                      </label>
                       {order.status === 'draft' && (
                         <button onClick={() => confirm_(order.id)}
                           className="flex items-center gap-1 bg-zigo-green text-white px-3 py-1.5 rounded-lg text-sm hover:opacity-90 transition">
                           <CheckCircle size={14}/> אשר הזמנה
                         </button>
                       )}
-                      <button onClick={() => sendWhatsApp(order)}
+                      <button onClick={() => openWhatsAppModal(order)}
                         className="flex items-center gap-1 bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-green-700 transition">
                         <MessageCircle size={14}/> WhatsApp
                       </button>
-                      <button onClick={() => navigate(`/orders/${order.id}/print`)}
+                      <button onClick={() => navigate(`/orders/${order.id}/print${hidePrices ? '?hide_prices=1' : ''}`)}
                         className="flex items-center gap-1 bg-zigo-card text-zigo-text border border-zigo-border px-3 py-1.5 rounded-lg text-sm hover:bg-zigo-bg transition">
                         <Printer size={14}/> הדפס PDF
                       </button>
@@ -218,6 +239,39 @@ export default function OrderHistory() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* WhatsApp modal */}
+      {waModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setWaModal(null)}>
+          <div className="bg-zigo-card rounded-xl border border-zigo-border shadow-xl p-5 w-full max-w-sm space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-zigo-text flex items-center gap-2"><Phone size={16} className="text-green-500"/> שלח WhatsApp</h3>
+              <button onClick={() => setWaModal(null)} className="text-zigo-muted hover:text-zigo-text"><X size={18}/></button>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-zigo-muted block">מספר טלפון (ניתן לעריכה)</label>
+              <input
+                className="w-full border border-zigo-border rounded-lg px-3 py-2 text-sm bg-zigo-bg text-zigo-text"
+                value={waModal.phone}
+                onChange={e => setWaModal(m => m ? { ...m, phone: e.target.value } : null)}
+                placeholder="9725XXXXXXXX"
+                dir="ltr"
+              />
+              <div className="text-xs text-zigo-muted">פורמט: 972XXXXXXXXX (ישראל)</div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => sendWhatsApp(waModal.phone, waModal.text)}
+                className="flex-1 flex items-center justify-center gap-2 bg-green-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-green-700 transition">
+                <MessageCircle size={16}/> פתח WhatsApp
+              </button>
+              <button onClick={() => setWaModal(null)} className="border border-zigo-border text-zigo-muted rounded-lg px-4 py-2 text-sm hover:bg-zigo-bg transition">
+                ביטול
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

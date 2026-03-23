@@ -28,6 +28,7 @@ class Supplier(Base):
     id = Column(String, primary_key=True, default=new_uuid)
     name = Column(String, nullable=False)
     contact = Column(String)
+    whatsapp = Column(String, nullable=True)
     reminder_days = Column(String, nullable=True)   # JSON e.g. "[0,3]" where 0=Sun
     created_at = Column(DateTime, server_default=func.now())
 
@@ -67,6 +68,7 @@ class Product(Base):
     prices = relationship("ProductPrice", back_populates="product", order_by="ProductPrice.recorded_at")
     order_items = relationship("OrderItem", back_populates="product")
     template_items = relationship("OrderTemplateItem", back_populates="product")
+    inventory = relationship("Inventory", back_populates="product", uselist=False)
 
     @property
     def latest_price(self):
@@ -156,3 +158,15 @@ class OrderTemplateItem(Base):
 
     template = relationship("OrderTemplate", back_populates="items")
     product = relationship("Product", back_populates="template_items")
+
+
+class Inventory(Base):
+    __tablename__ = "inventory"
+    id = Column(String, primary_key=True, default=new_uuid)
+    product_id = Column(String, ForeignKey("products.id"), nullable=False, unique=True)
+    current_qty = Column(Float, default=0)
+    min_qty = Column(Float, default=0)
+    unit = Column(String)
+    notes = Column(Text)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    product = relationship("Product", back_populates="inventory")

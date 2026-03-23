@@ -13,12 +13,14 @@ router = APIRouter(prefix="/suppliers", tags=["suppliers"])
 class SupplierCreate(BaseModel):
     name: str
     contact: Optional[str] = None
+    whatsapp: Optional[str] = None
 
 
 class SupplierOut(BaseModel):
     id: str
     name: str
     contact: Optional[str]
+    whatsapp: Optional[str] = None
     reminder_days: Optional[str] = None
 
     model_config = {"from_attributes": True}
@@ -45,7 +47,7 @@ def set_reminder_days(supplier_id: str, body: ReminderDaysIn, db: Session = Depe
 
 @router.post("/", response_model=SupplierOut)
 def create_supplier(body: SupplierCreate, db: Session = Depends(get_db)):
-    s = Supplier(name=body.name, contact=body.contact)
+    s = Supplier(name=body.name, contact=body.contact, whatsapp=body.whatsapp)
     db.add(s)
     db.commit()
     db.refresh(s)
@@ -69,6 +71,7 @@ def update_supplier(supplier_id: str, body: SupplierCreate, db: Session = Depend
         raise HTTPException(404, "Supplier not found")
     s.name = body.name
     s.contact = body.contact
+    s.whatsapp = body.whatsapp
     db.commit()
     db.refresh(s)
     return s

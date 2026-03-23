@@ -8,6 +8,7 @@ export default function OrderPrint() {
   const navigate = useNavigate()
   const [order, setOrder] = useState<Order | null>(null)
   const [supplier, setSupplier] = useState<Supplier | null>(null)
+  const hidePrices = new URLSearchParams(window.location.search).get('hide_prices') === '1'
 
   useEffect(() => {
     if (!orderId) return
@@ -80,8 +81,8 @@ export default function OrderPrint() {
               <th className="text-right p-3 font-semibold border border-gray-200">#</th>
               <th className="text-right p-3 font-semibold border border-gray-200">שם מוצר</th>
               <th className="text-center p-3 font-semibold border border-gray-200">כמות</th>
-              <th className="text-left p-3 font-semibold border border-gray-200">מחיר יחידה</th>
-              <th className="text-left p-3 font-semibold border border-gray-200">סה"כ</th>
+              {!hidePrices && <th className="text-left p-3 font-semibold border border-gray-200">מחיר יחידה</th>}
+              {!hidePrices && <th className="text-left p-3 font-semibold border border-gray-200">סה"כ</th>}
             </tr>
           </thead>
           <tbody>
@@ -92,15 +93,15 @@ export default function OrderPrint() {
                 <td className="p-3 border border-gray-200 text-center">
                   {item.quantity} {item.product_unit || ''}
                 </td>
-                <td className="p-3 border border-gray-200">₪{item.unit_price.toFixed(2)}</td>
-                <td className="p-3 border border-gray-200 font-semibold">₪{item.total_price.toFixed(2)}</td>
+                {!hidePrices && <td className="p-3 border border-gray-200">₪{item.unit_price.toFixed(2)}</td>}
+                {!hidePrices && <td className="p-3 border border-gray-200 font-semibold">₪{item.total_price.toFixed(2)}</td>}
               </tr>
             ))}
           </tbody>
           <tfoot>
             <tr className="bg-gray-100 font-bold">
-              <td colSpan={4} className="p-3 border border-gray-200 text-left">סה"כ לתשלום</td>
-              <td className="p-3 border border-gray-200 text-green-700 text-lg">₪{order.total_cost?.toFixed(2)}</td>
+              <td colSpan={hidePrices ? 3 : 4} className="p-3 border border-gray-200 text-left">סה"כ לתשלום</td>
+              {!hidePrices && <td className="p-3 border border-gray-200 text-green-700 text-lg">₪{order.total_cost?.toFixed(2)}</td>}
             </tr>
           </tfoot>
         </table>

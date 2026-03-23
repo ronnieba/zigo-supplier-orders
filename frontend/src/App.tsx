@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import {
   LayoutDashboard, Package, ShoppingCart, History, BarChart2,
   Truck, Menu, X, Sun, Moon, Calendar, HelpCircle, Database,
-  Bell, BellOff, LogOut, Users
+  Bell, BellOff, LogOut, Users, Boxes
 } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import Catalog from './pages/Catalog'
@@ -18,6 +18,7 @@ import BackupPage from './pages/BackupPage'
 import LoginPage from './pages/LoginPage'
 import UsersPage from './pages/UsersPage'
 import CartPage from './pages/CartPage'
+import InventoryPage from './pages/InventoryPage'
 import ZigoLogo from './ZigoLogo'
 import { getAuthStatus, getToken, setToken, clearToken, getCurrentUser, setCurrentUser, login, getCart, type AppUser } from './api'
 
@@ -28,6 +29,7 @@ const NAV = [
   { to: '/order/new', icon: ShoppingCart, label: 'הזמנה חדשה' },
   { to: '/cart', icon: ShoppingCart, label: 'סל קניות', cart: true },
   { to: '/orders', icon: History, label: 'היסטוריה' },
+  { to: '/inventory', icon: Boxes, label: 'מלאי' },
   { to: '/analytics', icon: BarChart2, label: 'אנליטיקות' },
   { to: '/calendar', icon: Calendar, label: 'לוח שנה' },
   { to: '/users', icon: Users, label: 'משתמשים', adminOnly: true },
@@ -337,6 +339,7 @@ export default function App() {
             <Route path="/suppliers" element={<Suppliers/>}/>
             <Route path="/calendar" element={<CalendarPage/>}/>
             <Route path="/cart" element={<CartPage/>}/>
+            <Route path="/inventory" element={<InventoryPage/>}/>
             <Route path="/users" element={<UsersPage/>}/>
             <Route path="/backup" element={<BackupPage/>}/>
             <Route path="/help" element={<HelpPage/>}/>

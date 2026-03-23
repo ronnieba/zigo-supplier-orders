@@ -63,11 +63,11 @@ export const deleteUser = (id: string) =>
 
 // ─── Suppliers ────────────────────────────────────────────────────────────────
 export const getSuppliers = () => req<Supplier[]>('/suppliers/')
-export const createSupplier = (data: { name: string; contact?: string }) =>
+export const createSupplier = (data: { name: string; contact?: string; whatsapp?: string }) =>
   req<Supplier>('/suppliers/', { method: 'POST', body: JSON.stringify(data) })
 export const deleteSupplier = (id: string) =>
   req(`/suppliers/${id}`, { method: 'DELETE' })
-export const updateSupplier = (id: string, data: { name: string; contact?: string }) =>
+export const updateSupplier = (id: string, data: { name: string; contact?: string; whatsapp?: string }) =>
   req<Supplier>(`/suppliers/${id}`, { method: 'PUT', body: JSON.stringify(data) })
 
 // ─── Budget ───────────────────────────────────────────────────────────────────
@@ -236,7 +236,7 @@ export async function importBackup(json: object): Promise<{ ok: boolean; added: 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface AppUser { id: string; username: string; full_name: string; role: 'admin' | 'viewer'; active?: boolean; created_at?: string }
-export interface Supplier { id: string; name: string; contact?: string; reminder_days?: string }
+export interface Supplier { id: string; name: string; contact?: string; whatsapp?: string; reminder_days?: string }
 export interface Budget { supplier_id: string; weekly_budget: number }
 export interface Catalog { id: string; supplier_id: string; filename: string; parsed: boolean; products_count: number; uploaded_at: string }
 export interface Product { id: string; supplier_id: string; code?: string; name: string; category?: string; unit?: string; latest_price?: number; prev_price?: number; price_change_pct?: number }
@@ -266,3 +266,15 @@ export interface CompareResult {
 }
 export interface OrderTemplateItem { id: string; product_id: string; product_name: string; product_unit?: string; quantity: number; unit_price?: number }
 export interface OrderTemplate { id: string; supplier_id: string; name: string; created_at: string; items: OrderTemplateItem[] }
+
+export interface InventoryItem {
+  id: string; product_id: string; product_name: string; product_code: string
+  supplier_id: string; supplier_name: string; current_qty: number; min_qty: number
+  unit: string; notes?: string; low_stock: boolean; updated_at?: string
+}
+export const getInventory = (supplier_id?: string, low_stock_only?: boolean) =>
+  req<InventoryItem[]>(`/inventory/?${supplier_id ? `supplier_id=${supplier_id}&` : ''}${low_stock_only ? 'low_stock_only=true' : ''}`)
+export const setInventory = (product_id: string, data: { current_qty: number; min_qty: number; unit?: string; notes?: string }) =>
+  req<InventoryItem>(`/inventory/${product_id}`, { method: 'PUT', body: JSON.stringify(data) })
+export const deleteInventory = (product_id: string) =>
+  req<{ ok: boolean }>(`/inventory/${product_id}`, { method: 'DELETE' })

@@ -61,6 +61,13 @@ export default function Dashboard() {
     try { return JSON.parse(s.reminder_days).includes(todayDay) } catch { return false }
   })
 
+  // Tomorrow's reminders
+  const tomorrowDay = (todayDay + 1) % 7
+  const tomorrowReminders = suppliers.filter(s => {
+    if (!s.reminder_days) return false
+    try { return JSON.parse(s.reminder_days).includes(tomorrowDay) } catch { return false }
+  })
+
   return (
     <div className="space-y-6">
       {/* Today's reminder banner */}
@@ -74,6 +81,25 @@ export default function Dashboard() {
             <div className="flex flex-wrap gap-2 mt-1.5">
               {todayReminders.map(s => (
                 <span key={s.id} className="bg-amber-100 dark:bg-amber-800/40 text-amber-800 dark:text-amber-200 text-xs px-2.5 py-1 rounded-full font-medium">
+                  {s.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tomorrow's reminder banner */}
+      {tomorrowReminders.length > 0 && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl px-4 py-3 flex items-start gap-3">
+          <Bell size={18} className="text-blue-500 dark:text-blue-400 mt-0.5 shrink-0"/>
+          <div>
+            <div className="font-semibold text-blue-800 dark:text-blue-300 text-sm">
+              מחר {DAY_NAMES[tomorrowDay]} — יש להזמין מ:
+            </div>
+            <div className="flex flex-wrap gap-2 mt-1.5">
+              {tomorrowReminders.map(s => (
+                <span key={s.id} className="bg-blue-100 dark:bg-blue-800/40 text-blue-800 dark:text-blue-200 text-xs px-2.5 py-1 rounded-full font-medium">
                   {s.name}
                 </span>
               ))}

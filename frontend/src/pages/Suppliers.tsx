@@ -10,11 +10,13 @@ export default function Suppliers() {
   const [selected, setSelected] = useState<Supplier | null>(null)
   const [newName, setNewName] = useState('')
   const [newContact, setNewContact] = useState('')
+  const [newWhatsapp, setNewWhatsapp] = useState('')
   const [uploading, setUploading] = useState(false)
   const [msg, setMsg] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editContact, setEditContact] = useState('')
+  const [editWhatsapp, setEditWhatsapp] = useState('')
 
   useEffect(() => { load() }, [])
   useEffect(() => { if (selected) loadCatalogs(selected.id) }, [selected])
@@ -32,8 +34,8 @@ export default function Suppliers() {
 
   async function addSupplier() {
     if (!newName.trim()) return
-    await createSupplier({ name: newName.trim(), contact: newContact.trim() || undefined })
-    setNewName(''); setNewContact('')
+    await createSupplier({ name: newName.trim(), contact: newContact.trim() || undefined, whatsapp: newWhatsapp.trim() || undefined })
+    setNewName(''); setNewContact(''); setNewWhatsapp('')
     load()
   }
 
@@ -48,17 +50,19 @@ export default function Suppliers() {
     setEditingId(s.id)
     setEditName(s.name)
     setEditContact(s.contact || '')
+    setEditWhatsapp(s.whatsapp || '')
   }
 
   function cancelEdit() {
     setEditingId(null)
     setEditName('')
     setEditContact('')
+    setEditWhatsapp('')
   }
 
   async function saveEdit(id: string) {
     if (!editName.trim()) return
-    await updateSupplier(id, { name: editName.trim(), contact: editContact.trim() || undefined })
+    await updateSupplier(id, { name: editName.trim(), contact: editContact.trim() || undefined, whatsapp: editWhatsapp.trim() || undefined })
     cancelEdit()
     load()
   }
@@ -109,6 +113,12 @@ export default function Suppliers() {
                       value={editContact}
                       onChange={e => setEditContact(e.target.value)}
                       placeholder="פרטי קשר (אופציונלי)"
+                    />
+                    <input
+                      className="w-full border border-zigo-border rounded-lg px-2 py-1 text-sm bg-zigo-bg text-zigo-text"
+                      value={editWhatsapp}
+                      onChange={e => setEditWhatsapp(e.target.value)}
+                      placeholder="וואטסאפ (אופציונלי)"
                     />
                     {/* Reminder days */}
                     <div>
@@ -206,6 +216,12 @@ export default function Suppliers() {
               placeholder="פרטי קשר (אופציונלי)"
               value={newContact}
               onChange={e => setNewContact(e.target.value)}
+            />
+            <input
+              className="w-full border border-zigo-border rounded-lg px-3 py-2 text-sm bg-zigo-bg text-zigo-text placeholder:text-zigo-muted"
+              placeholder="וואטסאפ (אופציונלי)"
+              value={newWhatsapp}
+              onChange={e => setNewWhatsapp(e.target.value)}
             />
             <button
               onClick={addSupplier}

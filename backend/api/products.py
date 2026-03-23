@@ -7,6 +7,28 @@ from database import get_db
 from models import Product, ProductPrice, OrderItem, Supplier
 
 
+UNIT_MAP = {
+    # weight
+    'ק"ג': 'ק״ג', "ק'ג": 'ק״ג', 'קג': 'ק״ג', 'קילו': 'ק״ג', 'kg': 'ק״ג', 'kilo': 'ק״ג',
+    'גרם': 'גרם', 'gr': 'גרם', 'g': 'גרם',
+    # volume
+    "ל'": 'ליטר', 'ליטר': 'ליטר', 'liter': 'ליטר', 'l': 'ליטר', 'lt': 'ליטר',
+    'מל': 'מ"ל', 'מ"ל': 'מ"ל', 'ml': 'מ"ל',
+    # unit
+    "יח'": 'יח׳', 'יח': 'יח׳', 'יחידה': 'יח׳', 'יחידות': 'יח׳', 'unit': 'יח׳', 'pcs': 'יח׳',
+    # package
+    'ארגז': 'ארגז', 'קרטון': 'קרטון', 'שקית': 'שקית', 'חבילה': 'חבילה',
+    'מגש': 'מגש', 'כד': 'כד', 'צנצנת': 'צנצנת', 'בקבוק': 'בקבוק',
+}
+
+
+def normalize_unit(raw: str | None) -> str | None:
+    if not raw:
+        return raw
+    cleaned = raw.strip().lower()
+    return UNIT_MAP.get(cleaned, raw.strip())
+
+
 def _normalize_heb(text: str) -> str:
     """Strip common Hebrew plural/feminine suffixes for fuzzy matching."""
     t = text.strip().lower()
@@ -55,13 +77,19 @@ def list_products(
             "code": p.code,
             "name": p.name,
             "category": p.category,
-            "unit": p.unit,
+            "unit": normalize_unit(p.unit),
             "latest_price": latest_price,
             "prev_price": prev_price,
             "price_change_pct": price_change,
         })
 
     return result
+
+
+@router.get("/units")
+def list_units():
+    """Returns all normalized unit types for reference"""
+    return sorted(set(UNIT_MAP.values()))
 
 
 @router.get("/categories")

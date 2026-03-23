@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   getSuppliers, getProducts, getSuggestions, createOrder, getTemplates, createTemplate, deleteTemplate,
-  type Supplier, type Product, type Suggestion, type OrderTemplate
+  compareProducts,
+  type Supplier, type Product, type Suggestion, type OrderTemplate, type CompareResult
 } from '../api'
 import { ShoppingCart, Plus, Minus, Search, CheckCircle, AlertTriangle, BookmarkPlus, BookOpen, Trash2, X } from 'lucide-react'
 
@@ -34,6 +35,11 @@ export default function NewOrder() {
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
 
+  // Filter state
+  const [globalSearch, setGlobalSearch] = useState(false)
+  const [filterRecent, setFilterRecent] = useState(false)
+  const [globalResults, setGlobalResults] = useState<CompareResult[]>([])
+
   // Template UI state
   const [showSaveTemplate, setShowSaveTemplate] = useState(false)
   const [templateName, setTemplateName] = useState('')
@@ -55,9 +61,27 @@ export default function NewOrder() {
     setCart([])
   }, [supplierId])
 
-  const filtered = products.filter(p =>
-    !search || p.name.toLowerCase().includes(search.toLowerCase())
-  )
+  useEffect(() => {
+    if (globalSearch && search.trim().length >= 2) {
+      compareProducts(search.trim()).then(setGlobalResults)
+    } else {
+      setGlobalResults([])
+    }
+  }, [globalSearch, search])
+
+  const filtered = (() => {
+    if (globalSearch && search.trim().length >= 2) return [] // shown separately
+    let list = products.filter(p =>
+      !search || p.name.toLowerCase().includes(search.toLowerCase())
+    )
+    if (filterRecent) {
+      list = list.filter(p => {
+        const sug = suggestions[p.id]
+        return sug && sug.avg_qty > 0
+      })
+    }
+    return list
+  })()
 
   function setQty(product: Product, qty: number) {
     if (qty <= 0) {
@@ -177,15 +201,75 @@ export default function NewOrder() {
       <div className="grid lg:grid-cols-3 gap-4">
         {/* Products panel */}
         <div className="lg:col-span-2 bg-zigo-card rounded-xl shadow border border-zigo-border">
-          <div className="p-3 border-b border-zigo-border">
+          <div className="p-3 border-b border-zigo-border space-y-2">
             <div className="relative">
               <Search size={16} className="absolute right-3 top-2.5 text-zigo-muted"/>
               <input className="w-full border border-zigo-border rounded-lg pr-9 pl-3 py-2 text-sm bg-zigo-bg text-zigo-text placeholder:text-zigo-muted"
                 placeholder="חפש מוצר..." value={search} onChange={e => setSearch(e.target.value)}/>
             </div>
+            <div className="flex flex-wrap gap-2 items-center">
+              <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                <input type="checkbox" checked={globalSearch} onChange={e => setGlobalSearch(e.target.checked)} className="rounded"/>
+                <span className={globalSearch ? 'text-zigo-green font-medium' : 'text-zigo-muted'}>חיפוש בכל הספקים</span>
+              </label>
+              <button
+                onClick={() => setFilterRecent(v => !v)}
+                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${filterRecent ? 'bg-zigo-green text-white border-zigo-green' : 'border-zigo-border text-zigo-muted hover:border-zigo-green hover:text-zigo-green'}`}
+              >
+                הוזמנו לאחרונה
+              </button>
+              <button
+                disabled
+                title="זמין בקרוב"
+                className="text-xs px-2.5 py-1 rounded-full border border-zigo-border text-zigo-muted/50 cursor-not-allowed"
+              >
+                במלאי
+              </button>
+            </div>
           </div>
           <div className="divide-y divide-zigo-border max-h-[60vh] overflow-y-auto">
-            {filtered.map(p => {
+            {globalSearch && search.trim().length >= 2 && globalResults.map(p => {
+              const qty = getQty(p.product_id)
+              return (
+                <div key={p.product_id} className="flex items-center gap-3 px-4 py-3 hover:bg-zigo-bg transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm truncate text-zigo-text">{p.product_name}</div>
+                    <div className="text-xs text-zigo-muted flex items-center gap-2">
+                      {p.latest_price ? `₪${p.latest_price.toFixed(2)}` : 'אין מחיר'}
+                      {p.unit && <span>· {p.unit}</span>}
+                      <span className="text-zigo-green">{p.supplier_name}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => {
+                      const prod: Product = { id: p.product_id, supplier_id: p.supplier_id, name: p.product_name, unit: p.unit, latest_price: p.latest_price }
+                      setQty(prod, qty - 1)
+                    }} className="w-8 h-8 rounded-full border border-zigo-border flex items-center justify-center text-zigo-text hover:bg-zigo-bg transition-colors">
+                      <Minus size={14}/>
+                    </button>
+                    <input
+                      type="number"
+                      className="w-14 border border-zigo-border rounded-lg text-center py-1 text-sm bg-zigo-bg text-zigo-text"
+                      value={qty || ''}
+                      placeholder="0"
+                      min="0"
+                      step="0.5"
+                      onChange={e => {
+                        const prod: Product = { id: p.product_id, supplier_id: p.supplier_id, name: p.product_name, unit: p.unit, latest_price: p.latest_price }
+                        setQty(prod, parseFloat(e.target.value) || 0)
+                      }}
+                    />
+                    <button onClick={() => {
+                      const prod: Product = { id: p.product_id, supplier_id: p.supplier_id, name: p.product_name, unit: p.unit, latest_price: p.latest_price }
+                      setQty(prod, qty + 1)
+                    }} className="w-8 h-8 rounded-full border border-zigo-border flex items-center justify-center text-zigo-text hover:bg-zigo-bg transition-colors">
+                      <Plus size={14}/>
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+            {!globalSearch && filtered.map(p => {
               const qty = getQty(p.id)
               const sug = suggestions[p.id]
               const alert = getDeviationAlert(p.id, qty)
@@ -234,8 +318,14 @@ export default function NewOrder() {
                 </div>
               )
             })}
-            {filtered.length === 0 && (
+            {!globalSearch && filtered.length === 0 && (
               <p className="p-6 text-center text-zigo-muted text-sm">לא נמצאו מוצרים</p>
+            )}
+            {globalSearch && search.trim().length >= 2 && globalResults.length === 0 && (
+              <p className="p-6 text-center text-zigo-muted text-sm">לא נמצאו תוצאות</p>
+            )}
+            {globalSearch && search.trim().length < 2 && (
+              <p className="p-6 text-center text-zigo-muted text-sm">הקלד לפחות 2 תווים לחיפוש</p>
             )}
           </div>
         </div>

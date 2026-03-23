@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from database import engine, Base
 import models
 
-from api import suppliers, catalogs, products, orders, analytics, templates, backup, auth, users
+from api import suppliers, catalogs, products, orders, analytics, templates, backup, auth, users, inventory
 from api.auth import verify_token, get_auth_mode
 
 Base.metadata.create_all(bind=engine)
@@ -22,6 +22,9 @@ def _run_migrations():
         cols = [c["name"] for c in insp.get_columns("suppliers")]
         if "reminder_days" not in cols:
             conn.execute(text("ALTER TABLE suppliers ADD COLUMN reminder_days TEXT"))
+            conn.commit()
+        if "whatsapp" not in cols:
+            conn.execute(text("ALTER TABLE suppliers ADD COLUMN whatsapp TEXT"))
             conn.commit()
 
 
@@ -104,6 +107,7 @@ app.include_router(orders.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(templates.router, prefix="/api")
 app.include_router(backup.router, prefix="/api")
+app.include_router(inventory.router, prefix="/api")
 
 
 @app.get("/api/health")
