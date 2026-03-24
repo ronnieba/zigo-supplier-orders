@@ -585,8 +585,9 @@ export default function HelpPage() {
       </div>
 
       {/* Footer */}
-      <div className="text-center text-xs text-zigo-muted pt-2">
-        ZIGO Cafe — מערכת הזמנות ספקים
+      <div className="text-center text-xs text-zigo-muted pt-2 space-y-0.5">
+        <div>ZIGO Cafe — מערכת הזמנות ספקים</div>
+        <div>גרסה 1.0.0</div>
       </div>
     </div>
   )
