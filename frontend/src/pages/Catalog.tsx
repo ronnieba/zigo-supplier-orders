@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { getSuppliers, getProducts, getCategories, compareProducts, addToCart, createProduct, updateProduct, deleteProduct, type Supplier, type Product, type CompareResult } from '../api'
-import { Package, Search, TrendingUp, TrendingDown, Minus, ChevronUp, ChevronDown, SlidersHorizontal, X, GitCompare, ShoppingCart, Plus, Pencil, Trash2 } from 'lucide-react'
+import { Package, Search, TrendingUp, TrendingDown, Minus, ChevronUp, ChevronDown, SlidersHorizontal, X, GitCompare, ShoppingCart, Plus, Pencil, Trash2, CheckSquare } from 'lucide-react'
 
 type CatalogTab = 'catalog' | 'global'
 
@@ -177,6 +177,7 @@ export default function Catalog() {
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [loading, setLoading] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
+  const [inStockOnly, setInStockOnly] = useState(false)
   const [showCompare, setShowCompare] = useState(false)
   const [compareSearch, setCompareSearch] = useState('')
   const [compareResults, setCompareResults] = useState<CompareResult[]>([])
@@ -205,7 +206,7 @@ export default function Catalog() {
   useEffect(() => {
     const timer = setTimeout(loadProducts, 300)
     return () => clearTimeout(timer)
-  }, [search, category, supplierId])
+  }, [search, category, supplierId, inStockOnly])
 
   async function loadProducts() {
     setLoading(true)
@@ -214,6 +215,7 @@ export default function Catalog() {
         supplier_id: supplierId || undefined,
         search: search || undefined,
         category: category || undefined,
+        in_stock: inStockOnly || undefined,
       })
       setProducts(p)
     } finally {
@@ -244,10 +246,10 @@ export default function Catalog() {
     return list
   }, [products, minPrice, maxPrice, sortKey, sortDir])
 
-  const hasActiveFilters = supplierId || category || minPrice || maxPrice || search
+  const hasActiveFilters = supplierId || category || minPrice || maxPrice || search || inStockOnly
 
   function clearFilters() {
-    setSupplierId(''); setCategory(''); setMinPrice(''); setMaxPrice(''); setSearch('')
+    setSupplierId(''); setCategory(''); setMinPrice(''); setMaxPrice(''); setSearch(''); setInStockOnly(false)
   }
 
   useEffect(() => {
@@ -386,6 +388,15 @@ export default function Catalog() {
                 : 'border-zigo-border text-zigo-muted hover:border-zigo-green hover:text-zigo-green'}`}
           >
             <GitCompare size={15}/>השווה
+          </button>
+          <button
+            onClick={() => setInStockOnly(v => !v)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors
+              ${inStockOnly
+                ? 'bg-zigo-green text-white border-zigo-green'
+                : 'border-zigo-border text-zigo-muted hover:border-zigo-green hover:text-zigo-green'}`}
+          >
+            <CheckSquare size={15}/>במלאי
           </button>
           <button
             onClick={() => setShowFilters(v => !v)}
