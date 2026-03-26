@@ -354,10 +354,11 @@ export default function Suppliers() {
                 </div>
                 <div className="flex items-center gap-3 text-xs text-zigo-muted mt-1">
                   <span className="flex items-center gap-1"><FileText size={12}/> PDF</span>
+                  <span className="flex items-center gap-1"><FileText size={12}/> Excel (XLSX)</span>
                   <span className="flex items-center gap-1"><Image size={12}/> JPG / PNG / WEBP</span>
                 </div>
                 {uploading && <p className="text-xs text-orange-500 mt-1">טעינת OCR ראשונה עשויה לקחת כמה דקות</p>}
-                <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.bmp"
+                <input type="file" accept=".pdf,.xlsx,.xls,.jpg,.jpeg,.png,.webp,.heic,.bmp"
                   className="hidden" onChange={handleUpload} disabled={uploading}/>
               </label>
 

@@ -334,6 +334,48 @@ def parse_catalog_image(file_bytes: bytes) -> list[ParsedProduct]:
     return deduplicate(products)
 
 
+def parse_catalog_excel(file_bytes: bytes) -> list[ParsedProduct]:
+    """Parse a supplier catalog from an Excel file (.xlsx)."""
+    import openpyxl
+    wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
+    all_products: list[ParsedProduct] = []
+
+    for sheet in wb.worksheets:
+        # Convert sheet to list of lists (same format as pdf tables)
+        rows = []
+        for row in sheet.iter_rows(values_only=True):
+            rows.append([str(cell).strip() if cell is not None else '' for cell in row])
+
+        # Skip empty or very small sheets
+        non_empty = [r for r in rows if any(c for c in r)]
+        if len(non_empty) < 2:
+            continue
+
+        # Find header row: first row with text cells that match known headers
+        header_idx = 0
+        for i, row in enumerate(non_empty[:10]):
+            row_text = ' '.join(c.lower() for c in row if c)
+            if any(kw in row_text for kw in NAME_HEADERS + PRICE_HEADERS):
+                header_idx = i
+                break
+
+        table = non_empty[header_idx:]
+        parsed = parse_table(table)
+        if parsed:
+            all_products.extend(parsed)
+        elif len(table) >= 2:
+            # fallback: try all rows as free text
+            for row in table[1:]:
+                line = ' '.join(c for c in row if c)
+                price = extract_price(line)
+                if price and 0.5 <= price <= 9999:
+                    name = re.sub(r'[\d,]+\.?\d*', '', line).strip(' .-|,₪')
+                    if len(name) >= 2:
+                        all_products.append(ParsedProduct(name=name, price=price))
+
+    return deduplicate(all_products)
+
+
 def parse_catalog_pdf(file_bytes: bytes) -> list[ParsedProduct]:
     """Main entry point: parse a supplier catalog PDF."""
     all_products: list[ParsedProduct] = []
