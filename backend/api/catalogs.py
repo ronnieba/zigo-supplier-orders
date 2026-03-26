@@ -6,10 +6,11 @@ from pydantic import BaseModel
 
 from database import get_db
 from models import Catalog, Product, ProductPrice, Supplier
-from services.pdf_parser import parse_catalog_pdf, parse_catalog_image
+from services.pdf_parser import parse_catalog_pdf, parse_catalog_image, parse_catalog_excel
 
-ALLOWED_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.webp', '.heic', '.bmp', '.tiff'}
+ALLOWED_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.webp', '.heic', '.bmp', '.tiff', '.xlsx', '.xls'}
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.heic', '.bmp', '.tiff'}
+EXCEL_EXTENSIONS = {'.xlsx', '.xls'}
 
 router = APIRouter(prefix="/catalogs", tags=["catalogs"])
 
@@ -59,7 +60,7 @@ async def upload_catalog(
 ):
     ext = os.path.splitext(file.filename or '')[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(400, f"סוג קובץ לא נתמך. מותר: PDF, JPG, PNG, WEBP")
+        raise HTTPException(400, f"סוג קובץ לא נתמך. מותר: PDF, Excel (XLSX), JPG, PNG, WEBP")
 
     supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
     if not supplier:
@@ -73,10 +74,12 @@ async def upload_catalog(
     with open(file_path, "wb") as f:
         f.write(contents)
 
-    # Parse — PDF or image
+    # Parse — PDF, Excel or image
     try:
         if ext in IMAGE_EXTENSIONS:
             parsed_products = parse_catalog_image(contents)
+        elif ext in EXCEL_EXTENSIONS:
+            parsed_products = parse_catalog_excel(contents)
         else:
             parsed_products = parse_catalog_pdf(contents)
     except Exception as e:
