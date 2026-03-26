@@ -38,6 +38,7 @@ export default function NewOrder() {
   // Filter state
   const [globalSearch, setGlobalSearch] = useState(false)
   const [filterRecent, setFilterRecent] = useState(false)
+  const [filterInStock, setFilterInStock] = useState(false)
   const [globalResults, setGlobalResults] = useState<CompareResult[]>([])
 
   // Template UI state
@@ -79,6 +80,9 @@ export default function NewOrder() {
         const sug = suggestions[p.id]
         return sug && sug.avg_qty > 0
       })
+    }
+    if (filterInStock) {
+      list = list.filter(p => p.in_stock === true)
     }
     return list
   })()
@@ -219,9 +223,8 @@ export default function NewOrder() {
                 הוזמנו לאחרונה
               </button>
               <button
-                disabled
-                title="זמין בקרוב"
-                className="text-xs px-2.5 py-1 rounded-full border border-zigo-border text-zigo-muted/50 cursor-not-allowed"
+                onClick={() => setFilterInStock(v => !v)}
+                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${filterInStock ? 'bg-zigo-green text-white border-zigo-green' : 'border-zigo-border text-zigo-muted hover:border-zigo-green hover:text-zigo-green'}`}
               >
                 במלאי
               </button>
