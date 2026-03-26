@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from difflib import SequenceMatcher
+from pydantic import BaseModel
+from typing import Optional
 
 from database import get_db
-from models import Product, ProductPrice, OrderItem, Supplier
+from models import Product, ProductPrice, OrderItem, Supplier, Catalog
 
 
 UNIT_MAP = {
@@ -42,6 +44,35 @@ def _similarity(a: str, b: str) -> float:
     return SequenceMatcher(None, _normalize_heb(a), _normalize_heb(b)).ratio()
 
 router = APIRouter(prefix="/products", tags=["products"])
+
+
+class ProductCreate(BaseModel):
+    supplier_id: str
+    name: str
+    code: Optional[str] = None
+    category: Optional[str] = None
+    unit: Optional[str] = None
+    price: Optional[float] = None
+
+
+class ProductUpdate(BaseModel):
+    name: Optional[str] = None
+    code: Optional[str] = None
+    category: Optional[str] = None
+    unit: Optional[str] = None
+    price: Optional[float] = None
+
+
+def _get_or_create_manual_catalog(supplier_id: str, db: Session) -> Catalog:
+    catalog = db.query(Catalog).filter(
+        Catalog.supplier_id == supplier_id,
+        Catalog.filename == "__manual__"
+    ).first()
+    if not catalog:
+        catalog = Catalog(supplier_id=supplier_id, filename="__manual__", parsed=True)
+        db.add(catalog)
+        db.flush()
+    return catalog
 
 
 @router.get("/")
@@ -144,3 +175,62 @@ def price_history(product_id: str, db: Session = Depends(get_db)):
         {"price": p.price, "date": p.recorded_at.isoformat(), "catalog_id": p.catalog_id}
         for p in prices
     ]
+
+
+@router.post("/")
+def create_product(data: ProductCreate, db: Session = Depends(get_db)):
+    supplier = db.query(Supplier).filter(Supplier.id == data.supplier_id).first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    product = Product(
+        supplier_id=data.supplier_id,
+        name=data.name,
+        code=data.code or None,
+        category=data.category or None,
+        unit=normalize_unit(data.unit) if data.unit else None,
+    )
+    db.add(product)
+    db.flush()
+    if data.price is not None:
+        catalog = _get_or_create_manual_catalog(data.supplier_id, db)
+        db.add(ProductPrice(product_id=product.id, catalog_id=catalog.id, price=data.price))
+    db.commit()
+    db.refresh(product)
+    prices_sorted = sorted(product.prices, key=lambda x: x.recorded_at)
+    latest_price = prices_sorted[-1].price if prices_sorted else None
+    return {
+        "id": product.id, "supplier_id": product.supplier_id,
+        "code": product.code, "name": product.name,
+        "category": product.category, "unit": product.unit,
+        "latest_price": latest_price, "prev_price": None, "price_change_pct": None,
+    }
+
+
+@router.put("/{product_id}")
+def update_product(product_id: str, data: ProductUpdate, db: Session = Depends(get_db)):
+    product = db.query(Product).options(joinedload(Product.prices)).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    if data.name is not None:
+        product.name = data.name
+    if data.code is not None:
+        product.code = data.code or None
+    if data.category is not None:
+        product.category = data.category or None
+    if data.unit is not None:
+        product.unit = normalize_unit(data.unit) if data.unit else None
+    if data.price is not None:
+        catalog = _get_or_create_manual_catalog(product.supplier_id, db)
+        db.add(ProductPrice(product_id=product_id, catalog_id=catalog.id, price=data.price))
+    db.commit()
+    return {"ok": True}
+
+
+@router.delete("/{product_id}")
+def delete_product(product_id: str, db: Session = Depends(get_db)):
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    db.delete(product)
+    db.commit()
+    return {"ok": True}

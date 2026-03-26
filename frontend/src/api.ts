@@ -114,6 +114,15 @@ export const getPriceHistory = (product_id: string) =>
 export const compareProducts = (name: string) =>
   req<CompareResult[]>(`/products/compare?name=${encodeURIComponent(name)}`)
 
+export const createProduct = (data: { supplier_id: string; name: string; code?: string; category?: string; unit?: string; price?: number }) =>
+  req<Product>('/products/', { method: 'POST', body: JSON.stringify(data) })
+
+export const updateProduct = (id: string, data: { name?: string; code?: string; category?: string; unit?: string; price?: number }) =>
+  req<{ ok: boolean }>(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+
+export const deleteProduct = (id: string) =>
+  req<{ ok: boolean }>(`/products/${id}`, { method: 'DELETE' })
+
 // ─── Orders ───────────────────────────────────────────────────────────────────
 export const getOrders = (supplier_id?: string, product_name?: string) => {
   const qs = new URLSearchParams()

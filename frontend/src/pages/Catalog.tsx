@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { getSuppliers, getProducts, getCategories, compareProducts, addToCart, type Supplier, type Product, type CompareResult } from '../api'
-import { Package, Search, TrendingUp, TrendingDown, Minus, ChevronUp, ChevronDown, SlidersHorizontal, X, GitCompare, ShoppingCart } from 'lucide-react'
+import { getSuppliers, getProducts, getCategories, compareProducts, addToCart, createProduct, updateProduct, deleteProduct, type Supplier, type Product, type CompareResult } from '../api'
+import { Package, Search, TrendingUp, TrendingDown, Minus, ChevronUp, ChevronDown, SlidersHorizontal, X, GitCompare, ShoppingCart, Plus, Pencil, Trash2 } from 'lucide-react'
 
 type CatalogTab = 'catalog' | 'global'
 
@@ -31,6 +31,110 @@ function SortBtn({ col, current, dir, onClick }: { col: SortKey; current: SortKe
   )
 }
 
+interface ProductFormData {
+  name: string; code: string; category: string; unit: string; price: string
+}
+
+function ProductModal({
+  suppliers, supplierId, editProduct, onClose, onSaved
+}: {
+  suppliers: Supplier[]
+  supplierId: string
+  editProduct: Product | null
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [form, setForm] = useState<ProductFormData>({
+    name: editProduct?.name ?? '',
+    code: editProduct?.code ?? '',
+    category: editProduct?.category ?? '',
+    unit: editProduct?.unit ?? '',
+    price: editProduct?.latest_price != null ? String(editProduct.latest_price) : '',
+  })
+  const [selSupplierId, setSelSupplierId] = useState(supplierId || (suppliers[0]?.id ?? ''))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.name.trim()) { setError('שם מוצר הוא שדה חובה'); return }
+    setSaving(true)
+    try {
+      const payload = {
+        name: form.name.trim(),
+        code: form.code.trim() || undefined,
+        category: form.category.trim() || undefined,
+        unit: form.unit.trim() || undefined,
+        price: form.price ? parseFloat(form.price) : undefined,
+      }
+      if (editProduct) {
+        await updateProduct(editProduct.id, payload)
+      } else {
+        await createProduct({ supplier_id: selSupplierId, ...payload })
+      }
+      onSaved()
+    } catch {
+      setError('שגיאה בשמירה — נסה שנית')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const field = (label: string, key: keyof ProductFormData, type = 'text', required = false) => (
+    <div className="space-y-1">
+      <label className="text-xs text-zigo-muted font-medium">{label}{required && ' *'}</label>
+      <input
+        type={type}
+        value={form[key]}
+        onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+        step={type === 'number' ? '0.01' : undefined}
+        className="w-full bg-zigo-bg border border-zigo-border rounded-lg px-3 py-2 text-sm text-zigo-text focus:outline-none focus:border-zigo-green"
+      />
+    </div>
+  )
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="bg-zigo-card border border-zigo-border rounded-2xl w-full max-w-md p-5 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-zigo-text text-lg">{editProduct ? 'עריכת מוצר' : 'הוספת מוצר'}</h3>
+          <button onClick={onClose} className="text-zigo-muted hover:text-zigo-text"><X size={18}/></button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          {!editProduct && (
+            <div className="space-y-1">
+              <label className="text-xs text-zigo-muted font-medium">ספק *</label>
+              <select
+                value={selSupplierId}
+                onChange={e => setSelSupplierId(e.target.value)}
+                className="w-full bg-zigo-bg border border-zigo-border rounded-lg px-3 py-2 text-sm text-zigo-text focus:outline-none focus:border-zigo-green"
+              >
+                {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+          )}
+          {field('שם מוצר', 'name', 'text', true)}
+          {field('קוד מוצר', 'code')}
+          {field('קטגוריה', 'category')}
+          {field('יחידה', 'unit')}
+          {field('מחיר (₪)', 'price', 'number')}
+          {error && <p className="text-red-400 text-xs">{error}</p>}
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={onClose}
+              className="flex-1 border border-zigo-border rounded-lg py-2 text-sm text-zigo-muted hover:text-zigo-text transition-colors">
+              ביטול
+            </button>
+            <button type="submit" disabled={saving}
+              className="flex-1 bg-zigo-green text-white rounded-lg py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-colors">
+              {saving ? 'שומר...' : editProduct ? 'שמור שינויים' : 'הוסף מוצר'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export default function Catalog() {
   const [tab, setTab] = useState<CatalogTab>('catalog')
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
@@ -53,6 +157,9 @@ export default function Catalog() {
   const [globalResults, setGlobalResults] = useState<CompareResult[]>([])
   const [globalLoading, setGlobalLoading] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [showModal, setShowModal] = useState(false)
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<Product | null>(null)
 
   useEffect(() => {
     getSuppliers().then(s => setSuppliers(s))
@@ -143,6 +250,19 @@ export default function Catalog() {
     return () => clearTimeout(t)
   }, [globalSearch])
 
+  async function handleDeleteProduct(p: Product) {
+    try {
+      await deleteProduct(p.id)
+      setToast(`${p.name} — נמחק`)
+      setTimeout(() => setToast(null), 2000)
+      loadProducts()
+    } catch {
+      setToast('שגיאה במחיקה')
+      setTimeout(() => setToast(null), 2000)
+    }
+    setConfirmDelete(null)
+  }
+
   function handleAddToCart(p: Product) {
     const supplier = suppliers.find(s => s.id === p.supplier_id)
     addToCart({
@@ -176,6 +296,37 @@ export default function Catalog() {
         </div>
       )}
 
+      {/* Product modal */}
+      {showModal && (
+        <ProductModal
+          suppliers={suppliers}
+          supplierId={supplierId}
+          editProduct={editingProduct}
+          onClose={() => { setShowModal(false); setEditingProduct(null) }}
+          onSaved={() => { setShowModal(false); setEditingProduct(null); loadProducts(); setToast(editingProduct ? 'המוצר עודכן' : 'המוצר נוסף'); setTimeout(() => setToast(null), 2000) }}
+        />
+      )}
+
+      {/* Confirm delete */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-zigo-card border border-zigo-border rounded-2xl p-5 w-full max-w-sm space-y-4">
+            <h3 className="font-bold text-zigo-text">מחיקת מוצר</h3>
+            <p className="text-sm text-zigo-muted">האם למחוק את <span className="text-zigo-text font-medium">{confirmDelete.name}</span>? פעולה זו אינה הפיכה.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmDelete(null)}
+                className="flex-1 border border-zigo-border rounded-lg py-2 text-sm text-zigo-muted hover:text-zigo-text transition-colors">
+                ביטול
+              </button>
+              <button onClick={() => handleDeleteProduct(confirmDelete)}
+                className="flex-1 bg-red-500 text-white rounded-lg py-2 text-sm font-medium hover:bg-red-600 transition-colors">
+                מחק
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h2 className="text-2xl font-bold flex items-center gap-2 text-zigo-text">
           <Package size={24} className="text-zigo-green"/>קטלוג מוצרים
@@ -192,6 +343,13 @@ export default function Catalog() {
               חיפוש כולל
             </button>
           </div>
+          {tab === 'catalog' && (
+            <button
+              onClick={() => { setEditingProduct(null); setShowModal(true) }}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border border-zigo-green text-zigo-green hover:bg-zigo-green hover:text-white transition-colors">
+              <Plus size={15}/>הוסף מוצר
+            </button>
+          )}
           <button
             onClick={() => { setShowCompare(v => !v); setShowFilters(false) }}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors
@@ -449,12 +607,22 @@ export default function Catalog() {
                         <PriceTag price={p.latest_price} change={p.price_change_pct}/>
                       </td>
                       <td className="px-2 py-3">
-                        {p.latest_price != null && (
-                          <button onClick={() => handleAddToCart(p)}
-                            className="text-zigo-muted hover:text-zigo-green p-1 transition-colors" title="הוסף לסל">
-                            <ShoppingCart size={15}/>
+                        <div className="flex items-center gap-1">
+                          {p.latest_price != null && (
+                            <button onClick={() => handleAddToCart(p)}
+                              className="text-zigo-muted hover:text-zigo-green p-1 transition-colors" title="הוסף לסל">
+                              <ShoppingCart size={15}/>
+                            </button>
+                          )}
+                          <button onClick={() => { setEditingProduct(p); setShowModal(true) }}
+                            className="text-zigo-muted hover:text-blue-400 p-1 transition-colors" title="ערוך מוצר">
+                            <Pencil size={14}/>
                           </button>
-                        )}
+                          <button onClick={() => setConfirmDelete(p)}
+                            className="text-zigo-muted hover:text-red-400 p-1 transition-colors" title="מחק מוצר">
+                            <Trash2 size={14}/>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
