@@ -80,15 +80,21 @@ def list_products(
     supplier_id: str | None = None,
     search: str | None = None,
     category: str | None = None,
+    in_stock: bool = False,
     db: Session = Depends(get_db),
 ):
-    q = db.query(Product).options(joinedload(Product.prices))
+    from models import Inventory as InventoryModel
+    q = db.query(Product).options(joinedload(Product.prices), joinedload(Product.inventory))
     if supplier_id:
         q = q.filter(Product.supplier_id == supplier_id)
     if search:
         q = q.filter(Product.name.ilike(f"%{search}%"))
     if category:
         q = q.filter(Product.category == category)
+    if in_stock:
+        q = q.join(InventoryModel, Product.id == InventoryModel.product_id).filter(
+            InventoryModel.current_qty > 0
+        )
 
     products = q.all()
 
@@ -102,6 +108,7 @@ def list_products(
         if latest_price and prev_price and prev_price > 0:
             price_change = round((latest_price - prev_price) / prev_price * 100, 1)
 
+        inv = p.inventory
         result.append({
             "id": p.id,
             "supplier_id": p.supplier_id,
@@ -112,6 +119,8 @@ def list_products(
             "latest_price": latest_price,
             "prev_price": prev_price,
             "price_change_pct": price_change,
+            "current_qty": inv.current_qty if inv else None,
+            "in_stock": (inv.current_qty > 0) if inv else None,
         })
 
     return result

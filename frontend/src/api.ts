@@ -97,11 +97,12 @@ export const deleteCatalog = (id: string) =>
   req(`/catalogs/${id}`, { method: 'DELETE' })
 
 // ─── Products ─────────────────────────────────────────────────────────────────
-export const getProducts = (params: { supplier_id?: string; search?: string; category?: string } = {}) => {
+export const getProducts = (params: { supplier_id?: string; search?: string; category?: string; in_stock?: boolean } = {}) => {
   const qs = new URLSearchParams()
   if (params.supplier_id) qs.set('supplier_id', params.supplier_id)
   if (params.search) qs.set('search', params.search)
   if (params.category) qs.set('category', params.category)
+  if (params.in_stock) qs.set('in_stock', 'true')
   return req<Product[]>(`/products/?${qs}`)
 }
 
@@ -256,7 +257,7 @@ export interface Supplier {
 }
 export interface Budget { supplier_id: string; weekly_budget: number }
 export interface Catalog { id: string; supplier_id: string; filename: string; parsed: boolean; products_count: number; uploaded_at: string }
-export interface Product { id: string; supplier_id: string; code?: string; name: string; category?: string; unit?: string; latest_price?: number; prev_price?: number; price_change_pct?: number }
+export interface Product { id: string; supplier_id: string; code?: string; name: string; category?: string; unit?: string; latest_price?: number; prev_price?: number; price_change_pct?: number; current_qty?: number | null; in_stock?: boolean | null }
 export interface PricePoint { price: number; date: string; catalog_id: string }
 export interface OrderItem { id: string; product_id: string; product_name: string; product_code?: string; product_unit?: string; quantity: number; unit_price: number; total_price: number }
 export interface Order { id: string; supplier_id: string; week_start: string; status: string; notes?: string; total_cost: number; created_at: string; items: OrderItem[] }
