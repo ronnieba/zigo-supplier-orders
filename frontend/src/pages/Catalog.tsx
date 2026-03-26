@@ -116,7 +116,35 @@ function ProductModal({
           {field('שם מוצר', 'name', 'text', true)}
           {field('קוד מוצר', 'code')}
           {field('קטגוריה', 'category')}
-          {field('יחידה', 'unit')}
+          <div className="space-y-1">
+            <label className="text-xs text-zigo-muted font-medium">סוג יחידה</label>
+            <select
+              value={form.unit}
+              onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}
+              className="w-full bg-zigo-bg border border-zigo-border rounded-lg px-3 py-2 text-sm text-zigo-text focus:outline-none focus:border-zigo-green"
+            >
+              <option value="">— לא צוין —</option>
+              <optgroup label="משקל">
+                <option value="ק״ג">ק״ג — לפי קילוגרם</option>
+                <option value="גרם">גרם</option>
+              </optgroup>
+              <optgroup label="יחידות">
+                <option value="יח׳">יח׳ — לפי יחידה</option>
+                <option value="ארגז">ארגז</option>
+                <option value="קרטון">קרטון</option>
+                <option value="שקית">שקית</option>
+                <option value="חבילה">חבילה</option>
+                <option value="מגש">מגש</option>
+                <option value="כד">כד</option>
+                <option value="צנצנת">צנצנת</option>
+                <option value="בקבוק">בקבוק</option>
+              </optgroup>
+              <optgroup label="נפח">
+                <option value="ליטר">ליטר</option>
+                <option value="מ&quot;ל">מ"ל</option>
+              </optgroup>
+            </select>
+          </div>
           {field('מחיר (₪)', 'price', 'number')}
           {error && <p className="text-red-400 text-xs">{error}</p>}
           <div className="flex gap-2 pt-1">
@@ -578,7 +606,7 @@ export default function Catalog() {
                     )}
                     <th className="text-right px-4 py-3 font-medium text-zigo-muted hidden sm:table-cell">קוד</th>
                     <th className="text-right px-4 py-3 font-medium text-zigo-muted hidden md:table-cell">קטגוריה</th>
-                    <th className="text-right px-4 py-3 font-medium text-zigo-muted hidden md:table-cell">יחידה</th>
+                    <th className="text-right px-4 py-3 font-medium text-zigo-muted hidden md:table-cell">יחידה / משקל</th>
                     <th className="text-left px-4 py-3 font-medium text-zigo-muted">
                       <div className="flex items-center gap-1">
                         <SortBtn col="price" current={sortKey} dir={sortDir} onClick={() => toggleSort('price')}/>
@@ -602,7 +630,17 @@ export default function Catalog() {
                       )}
                       <td className="px-4 py-3 text-zigo-muted hidden sm:table-cell">{p.code || '—'}</td>
                       <td className="px-4 py-3 text-zigo-muted hidden md:table-cell">{p.category || '—'}</td>
-                      <td className="px-4 py-3 text-zigo-muted hidden md:table-cell">{p.unit || '—'}</td>
+                      <td className="px-4 py-3 hidden md:table-cell">
+                        {p.unit
+                          ? <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                              ['ק״ג','גרם'].includes(p.unit)
+                                ? 'bg-orange-500/10 text-orange-400'
+                                : ['ליטר','מ"ל'].includes(p.unit)
+                                ? 'bg-blue-500/10 text-blue-400'
+                                : 'bg-zigo-green/10 text-zigo-green'
+                            }`}>{p.unit}</span>
+                          : <span className="text-zigo-muted">—</span>}
+                      </td>
                       <td className="px-4 py-3">
                         <PriceTag price={p.latest_price} change={p.price_change_pct}/>
                       </td>
