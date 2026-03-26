@@ -361,7 +361,7 @@ export default function Catalog() {
         <h2 className="text-2xl font-bold flex items-center gap-2 text-zigo-text">
           <Package size={24} className="text-zigo-green"/>קטלוג מוצרים
         </h2>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-end">
           {/* Tab switcher */}
           <div className="flex bg-zigo-card border border-zigo-border rounded-lg p-0.5">
             <button onClick={() => setTab('catalog')}
