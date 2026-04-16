@@ -121,8 +121,8 @@ def extract_price(text: str) -> Optional[float]:
             except ValueError:
                 continue
     # fallback: find any number that looks like a price (1-9999)
-    # but reject pure long integers (likely SKU/code)
-    if re.fullmatch(r'\d{4,}', text.strip()):
+    # but reject pure long integers (6+ digits = likely SKU/code)
+    if re.fullmatch(r'\d{6,}', text.strip()):
         return None  # looks like a code, not a price
     m = re.search(r'\b(\d{1,4}(?:\.\d{1,2})?)\b', text)
     if m:
@@ -151,9 +151,9 @@ def detect_column_map(headers: list[str], fix_rtl: bool = False) -> dict:
 
 
 def _looks_like_sku(text: str) -> bool:
-    """Return True if text looks like a SKU/code — pure integer, possibly long."""
+    """Return True if text looks like a SKU/code — pure integer with 5+ digits."""
     t = str(text).strip()
-    return bool(re.fullmatch(r'\d{3,}', t))  # 3+ digit integer = likely a code
+    return bool(re.fullmatch(r'\d{5,}', t))  # 5+ digit integer = likely a code
 
 
 def _find_price_col(table: list[list], num_cols: int) -> Optional[int]:
