@@ -99,23 +99,28 @@ async def upload_catalog(
     # Upsert products and save prices
     saved = 0
     for p in parsed_products:
-        # Check if product already exists (match by code or name)
+        # Normalize name for matching
+        p_name_clean = p.name.strip()
+        p_code_clean = p.code.strip() if p.code else None
+
+        # Check if product already exists (match by code or name, case-insensitive)
         product = None
-        if p.code:
+        if p_code_clean:
             product = db.query(Product).filter(
                 Product.supplier_id == supplier_id,
-                Product.code == p.code,
+                Product.code == p_code_clean,
             ).first()
         if not product:
+            from sqlalchemy import func
             product = db.query(Product).filter(
                 Product.supplier_id == supplier_id,
-                Product.name == p.name,
+                func.lower(func.trim(Product.name)) == p_name_clean.lower(),
             ).first()
         if not product:
             product = Product(
                 supplier_id=supplier_id,
-                code=p.code,
-                name=p.name,
+                code=p_code_clean,
+                name=p_name_clean,
                 category=p.category,
                 unit=p.unit,
             )
