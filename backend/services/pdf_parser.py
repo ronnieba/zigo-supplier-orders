@@ -121,6 +121,9 @@ def extract_price(text: str) -> Optional[float]:
             except ValueError:
                 continue
     # fallback: find any number that looks like a price (1-9999)
+    # but reject pure long integers (likely SKU/code)
+    if re.fullmatch(r'\d{4,}', text.strip()):
+        return None  # looks like a code, not a price
     m = re.search(r'\b(\d{1,4}(?:\.\d{1,2})?)\b', text)
     if m:
         val = float(m.group(1))
@@ -147,16 +150,42 @@ def detect_column_map(headers: list[str], fix_rtl: bool = False) -> dict:
     return mapping
 
 
+def _looks_like_sku(text: str) -> bool:
+    """Return True if text looks like a SKU/code — pure integer, possibly long."""
+    t = str(text).strip()
+    return bool(re.fullmatch(r'\d{3,}', t))  # 3+ digit integer = likely a code
+
+
 def _find_price_col(table: list[list], num_cols: int) -> Optional[int]:
-    """Find the column index where >40% of data rows look like prices."""
+    """Find the column index that best looks like prices.
+
+    Scoring:
+    - +2 for values with decimal point (e.g. 12.50)
+    - +1 for values that are numeric and in price range
+    - -2 for values that look like SKUs (long integers)
+    Prefer the column with the highest score.
+    """
+    best_col, best_score = None, -1
     for col_idx in range(num_cols):
-        values = [row[col_idx] for row in table[1:] if row and col_idx < len(row)]
+        values = [str(row[col_idx]).strip() for row in table[1:] if row and col_idx < len(row) and row[col_idx]]
         if not values:
             continue
-        prices_found = sum(1 for v in values if extract_price(str(v)) is not None)
-        if prices_found > len(values) * 0.4:
-            return col_idx
-    return None
+        score = 0
+        for v in values:
+            if re.search(r'\d+\.\d{1,2}', v):          # has decimal → strong price signal
+                score += 2
+            elif re.search(r'₪', v):                    # has shekel sign
+                score += 2
+            elif _looks_like_sku(v):                    # long integer → penalise
+                score -= 2
+            elif extract_price(v) is not None:          # generic number in price range
+                score += 1
+        # require at least 40% of rows to contribute positively
+        positive = sum(1 for v in values if re.search(r'\d+\.\d{1,2}', v) or re.search(r'₪', v) or (not _looks_like_sku(v) and extract_price(v) is not None))
+        if positive > len(values) * 0.4 and score > best_score:
+            best_score = score
+            best_col = col_idx
+    return best_col
 
 
 def _find_name_col(table: list[list], num_cols: int, exclude: int) -> int:
