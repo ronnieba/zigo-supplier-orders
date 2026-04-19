@@ -35,7 +35,7 @@ PRICE_PATTERNS = [
 
 NAME_HEADERS = ['שם', 'מוצר', 'תיאור', 'פריט', 'name', 'product', 'description', 'item']
 PRICE_HEADERS = ['מחיר', 'עלות', 'price', 'cost', 'סכום']
-CODE_HEADERS = ['קוד', 'מקט', 'מספר', 'code', 'sku', 'ref', '#']
+CODE_HEADERS = ['קוד', 'מקט', 'מק"ט', 'מק״ט', 'מספר', 'code', 'sku', 'ref', '#', 'item']
 UNIT_HEADERS = ['יחידה', 'אריזה', 'כמות', 'unit', 'pack', 'qty']
 
 # All known Hebrew keywords (forward + reversed) for visual-order detection
@@ -280,14 +280,18 @@ def parse_text_lines(text: str) -> list[ParsedProduct]:
 
 
 def deduplicate(products: list[ParsedProduct]) -> list[ParsedProduct]:
-    seen = set()
-    result = []
+    seen: dict = {}
     for p in products:
-        key = (p.name.lower()[:40], round(p.price, 1))
-        if key not in seen:
-            seen.add(key)
-            result.append(p)
-    return result
+        # If product has a code, use code as unique key (same code = same product)
+        if p.code and p.code.strip():
+            key = f"code:{p.code.strip().lower()}"
+        else:
+            key = f"name:{p.name.strip().lower()[:50]}"
+        existing = seen.get(key)
+        # Keep product with price info (prefer non-zero price over zero)
+        if existing is None or (p.price and p.price > 0 and (not existing.price or existing.price <= 0)):
+            seen[key] = p
+    return list(seen.values())
 
 
 def parse_catalog_image(file_bytes: bytes) -> list[ParsedProduct]:
@@ -363,44 +367,190 @@ def parse_catalog_image(file_bytes: bytes) -> list[ParsedProduct]:
     return deduplicate(products)
 
 
+def _is_product_code(val: str) -> bool:
+    """Return True if a cell value looks like a product code (not a price)."""
+    if not val:
+        return False
+    # Codes are typically alphanumeric strings like "MH-S1015", "ABC123", etc.
+    # They contain letters mixed with numbers, or are clearly not standalone prices
+    return bool(re.match(r'^[A-Za-z][\w\s\-/]+$', val.strip()))
+
+
+def _is_valid_price(v) -> bool:
+    """Return True if value looks like a real product price (not a year, date, code)."""
+    import datetime
+    if isinstance(v, datetime.datetime) or isinstance(v, datetime.date):
+        return False
+    if isinstance(v, bool):
+        return False
+    if isinstance(v, (int, float)):
+        f = float(v)
+        # Exclude years (2000-2099) and values out of price range
+        if 2000 <= f <= 2099:
+            return False
+        return 0.1 <= f <= 9999
+    if isinstance(v, str):
+        s = v.strip()
+        if re.match(r'^20[0-9]{2}$', s):  # year like 2026
+            return False
+        p = extract_price(s)
+        return p is not None and 0.1 <= p <= 9999
+    return False
+
+
+def _find_price_col_excel(data_rows: list[list], num_cols: int) -> Optional[int]:
+    """
+    Find the column that contains numeric prices.
+    Prefers columns where values are pure floats/ints in a reasonable price range.
+    Avoids columns that look like product codes or dates.
+    """
+    best_col = None
+    best_score = 0
+
+    for col_idx in range(num_cols):
+        values = [row[col_idx] for row in data_rows if col_idx < len(row)]
+        numeric_prices = 0
+        total_non_empty = 0
+        for v in values:
+            if v is None or v == '':
+                continue
+            total_non_empty += 1
+            if _is_valid_price(v):
+                numeric_prices += 1
+
+        if total_non_empty > 0:
+            score = numeric_prices / total_non_empty
+            if score > best_score and score > 0.5:
+                best_score = score
+                best_col = col_idx
+
+    return best_col
+
+
+def _find_name_col_excel(data_rows: list[list], num_cols: int, exclude_cols: set) -> int:
+    """Find the column with the most Hebrew/text content (excluding excluded cols)."""
+    best_col = 0
+    best_score = -1
+    for col_idx in range(num_cols):
+        if col_idx in exclude_cols:
+            continue
+        values = [row[col_idx] for row in data_rows if col_idx < len(row) and row[col_idx] not in (None, '')]
+        # Score: cells with Hebrew characters
+        score = sum(1 for v in values if isinstance(v, str) and _is_hebrew(str(v)))
+        # Also count long text strings
+        score += sum(0.5 for v in values if isinstance(v, str) and len(str(v)) > 5)
+        if score > best_score:
+            best_score = score
+            best_col = col_idx
+    return best_col
+
+
 def parse_catalog_excel(file_bytes: bytes) -> list[ParsedProduct]:
-    """Parse a supplier catalog from an Excel file (.xlsx)."""
+    """Parse a supplier catalog from an Excel file (.xlsx/.xls)."""
     import openpyxl
     wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
     all_products: list[ParsedProduct] = []
 
     for sheet in wb.worksheets:
-        # Convert sheet to list of lists (same format as pdf tables)
-        rows = []
-        for row in sheet.iter_rows(values_only=True):
-            rows.append([str(cell).strip() if cell is not None else '' for cell in row])
-
-        # Skip empty or very small sheets
-        non_empty = [r for r in rows if any(c for c in r)]
+        # Get all rows with raw values (keep types — floats stay floats)
+        raw_rows = list(sheet.iter_rows(values_only=True))
+        non_empty = [list(r) for r in raw_rows if any(v is not None and v != '' for v in r)]
         if len(non_empty) < 2:
             continue
 
-        # Find header row: first row with text cells that match known headers
+        # Find header row (first row with text keywords)
         header_idx = 0
         for i, row in enumerate(non_empty[:10]):
-            row_text = ' '.join(c.lower() for c in row if c)
-            if any(kw in row_text for kw in NAME_HEADERS + PRICE_HEADERS):
+            row_text = ' '.join(str(v).lower() for v in row if v is not None)
+            if any(kw in row_text for kw in NAME_HEADERS + PRICE_HEADERS + CODE_HEADERS):
                 header_idx = i
                 break
 
-        table = non_empty[header_idx:]
-        parsed = parse_table(table)
-        if parsed:
-            all_products.extend(parsed)
-        elif len(table) >= 2:
-            # fallback: try all rows as free text
-            for row in table[1:]:
-                line = ' '.join(c for c in row if c)
-                price = extract_price(line)
-                if price and 0.5 <= price <= 9999:
-                    name = re.sub(r'[\d,]+\.?\d*', '', line).strip(' .-|,₪')
-                    if len(name) >= 2:
-                        all_products.append(ParsedProduct(name=name, price=price))
+        header = non_empty[header_idx]
+        data_rows = non_empty[header_idx + 1:]
+        if not data_rows:
+            continue
+
+        num_cols = max(len(r) for r in non_empty)
+
+        # Try to map columns from header keywords
+        col_map = {}
+        for i, h in enumerate(header):
+            if h is None:
+                continue
+            h_lower = str(h).lower().strip()
+            if any(kw in h_lower for kw in NAME_HEADERS) and 'name' not in col_map:
+                col_map['name'] = i
+            elif any(kw in h_lower for kw in PRICE_HEADERS) and 'price' not in col_map:
+                col_map['price'] = i
+            elif any(kw in h_lower for kw in CODE_HEADERS) and 'code' not in col_map:
+                col_map['code'] = i
+            elif any(kw in h_lower for kw in UNIT_HEADERS) and 'unit' not in col_map:
+                col_map['unit'] = i
+
+        # Fallback: detect price col heuristically (pure numeric column)
+        if 'price' not in col_map:
+            price_col = _find_price_col_excel(data_rows, num_cols)
+            if price_col is not None:
+                col_map['price'] = price_col
+
+        # Fallback: detect name col (most Hebrew text)
+        if 'name' not in col_map:
+            exclude = {col_map.get('price', -1), col_map.get('code', -1)} - {-1}
+            col_map['name'] = _find_name_col_excel(data_rows, num_cols, exclude)
+
+        # Make sure name and price aren't the same column
+        if col_map.get('name') == col_map.get('price'):
+            exclude = {col_map['price']}
+            col_map['name'] = _find_name_col_excel(data_rows, num_cols, exclude)
+
+        name_col = col_map.get('name', 0)
+        price_col = col_map.get('price')
+        code_col = col_map.get('code')
+        unit_col = col_map.get('unit')
+
+        for row in data_rows:
+            try:
+                # Get name
+                name_val = row[name_col] if name_col < len(row) else None
+                if name_val is None or str(name_val).strip() == '':
+                    continue
+                name = str(name_val).strip()
+                if len(name) < 2:
+                    continue
+
+                # Get price
+                price = None
+                if price_col is not None and price_col < len(row):
+                    pval = row[price_col]
+                    if _is_valid_price(pval):
+                        if isinstance(pval, (int, float)):
+                            price = float(pval)
+                        else:
+                            price = extract_price(str(pval))
+
+                # Allow adding product even without price
+
+                # Get code
+                code = None
+                if code_col is not None and code_col < len(row):
+                    cv = row[code_col]
+                    code = str(cv).strip() if cv not in (None, '') else None
+
+                # Get unit
+                unit = None
+                if unit_col is not None and unit_col < len(row):
+                    uv = row[unit_col]
+                    unit = str(uv).strip() if uv not in (None, '') else None
+
+                all_products.append(ParsedProduct(
+                    name=name,
+                    price=price if price is not None else 0.0,
+                    code=code,
+                    unit=unit,
+                ))
+            except Exception:
+                continue
 
     return deduplicate(all_products)
 
