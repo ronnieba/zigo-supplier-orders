@@ -36,6 +36,12 @@ def _run_migrations():
             conn.execute(text("ALTER TABLE suppliers ADD COLUMN notes TEXT"))
             conn.commit()
 
+        # catalogs.archived — added in v2.2
+        cat_cols = [c["name"] for c in insp.get_columns("catalogs")]
+        if "archived" not in cat_cols:
+            conn.execute(text("ALTER TABLE catalogs ADD COLUMN archived BOOLEAN DEFAULT FALSE"))
+            conn.commit()
+
 
 _run_migrations()
 

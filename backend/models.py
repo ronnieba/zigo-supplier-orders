@@ -52,6 +52,7 @@ class Catalog(Base):
     uploaded_at = Column(DateTime, server_default=func.now())
     parsed = Column(Boolean, default=False)
     products_count = Column(Integer, default=0)
+    archived = Column(Boolean, default=False)
 
     supplier = relationship("Supplier", back_populates="catalogs")
     prices = relationship("ProductPrice", back_populates="catalog")
