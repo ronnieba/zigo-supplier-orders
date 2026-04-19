@@ -97,6 +97,7 @@ async def upload_catalog(
     db.flush()
 
     # Upsert products and save prices
+    from sqlalchemy import func
     saved = 0
     for p in parsed_products:
         # Normalize name for matching
@@ -111,12 +112,21 @@ async def upload_catalog(
                 Product.code == p_code_clean,
             ).first()
         if not product:
-            from sqlalchemy import func
             product = db.query(Product).filter(
                 Product.supplier_id == supplier_id,
                 func.lower(func.trim(Product.name)) == p_name_clean.lower(),
             ).first()
-        if not product:
+
+        if product:
+            # Update existing product details
+            product.name = p_name_clean
+            if p_code_clean:
+                product.code = p_code_clean
+            if p.category:
+                product.category = p.category
+            if p.unit:
+                product.unit = p.unit
+        else:
             product = Product(
                 supplier_id=supplier_id,
                 code=p_code_clean,
@@ -127,13 +137,14 @@ async def upload_catalog(
             db.add(product)
             db.flush()
 
-        # Always add a new price record per catalog
-        price_record = ProductPrice(
-            product_id=product.id,
-            catalog_id=catalog.id,
-            price=p.price,
-        )
-        db.add(price_record)
+        # Add price record only if price is available (> 0)
+        if p.price and p.price > 0:
+            price_record = ProductPrice(
+                product_id=product.id,
+                catalog_id=catalog.id,
+                price=p.price,
+            )
+            db.add(price_record)
         saved += 1
 
     db.commit()
