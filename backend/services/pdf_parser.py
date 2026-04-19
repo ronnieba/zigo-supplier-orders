@@ -248,6 +248,9 @@ def parse_table(table: list[list], fix_rtl: bool = False) -> list[ParsedProduct]
             unit_raw = str(row[col_map['unit']]).strip() if 'unit' in col_map and col_map['unit'] < len(row) else None
             unit = _fix_visual_rtl(unit_raw) if (fix_rtl and unit_raw) else unit_raw
 
+            # Clean name: strip leading asterisks/bullets and extract embedded unit
+            name, unit = _clean_product_name(name, unit)
+
             products.append(ParsedProduct(
                 name=name,
                 price=price,
@@ -274,8 +277,10 @@ def parse_text_lines(text: str) -> list[ParsedProduct]:
             name = re.sub(r'[\d,]+\.?\d*\s*₪', '', name)
             name = re.sub(r'\b\d{1,4}(?:\.\d{1,2})?\b', '', name)
             name = name.strip(' .-|,')
+            # Clean name: strip leading asterisks/bullets and extract embedded unit
+            name, unit = _clean_product_name(name)
             if len(name) >= 2:
-                products.append(ParsedProduct(name=name, price=price))
+                products.append(ParsedProduct(name=name, price=price, unit=unit))
     return products
 
 
@@ -365,6 +370,30 @@ def parse_catalog_image(file_bytes: bytes) -> list[ParsedProduct]:
         products.append(ParsedProduct(name=name, price=price))
 
     return deduplicate(products)
+
+
+def _clean_product_name(name: str, unit: Optional[str] = None) -> tuple[str, Optional[str]]:
+    """
+    Normalize a product name that may contain formatting artifacts:
+    1. Strip leading bullets/asterisks: '* product' → 'product'
+    2. Extract embedded unit from 'product,unit' format if no unit was already found.
+       Only splits if the suffix is short (≤15 chars), has no digits, and contains Hebrew.
+    Returns (cleaned_name, unit).
+    """
+    # Strip leading asterisks, bullets, dashes, whitespace
+    cleaned = re.sub(r'^[\*\•\-–—\s]+', '', name).strip()
+
+    # Extract unit from trailing ',unit' if no unit col provided
+    extracted_unit = unit
+    if not extracted_unit and ',' in cleaned:
+        parts = cleaned.rsplit(',', 1)
+        suffix = parts[1].strip()
+        # Valid unit suffix: short, no digits, contains Hebrew
+        if len(suffix) <= 15 and not re.search(r'\d', suffix) and _is_hebrew(suffix):
+            cleaned = parts[0].strip()
+            extracted_unit = suffix
+
+    return cleaned, extracted_unit
 
 
 def _is_product_code(val: str) -> bool:
@@ -552,6 +581,11 @@ def parse_catalog_excel(file_bytes: bytes) -> list[ParsedProduct]:
                 if unit_col is not None and unit_col < len(row):
                     uv = row[unit_col]
                     unit = str(uv).strip() if uv not in (None, '') else None
+
+                # Clean name: strip leading asterisks/bullets and extract embedded unit
+                name, unit = _clean_product_name(name, unit)
+                if len(name) < 2:
+                    continue
 
                 all_products.append(ParsedProduct(
                     name=name,
