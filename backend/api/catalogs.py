@@ -148,14 +148,28 @@ async def upload_catalog(
 @router.delete("/{catalog_id}")
 def delete_catalog(catalog_id: str, db: Session = Depends(get_db)):
     from models import ProductPrice
+    from sqlalchemy import func
     c = db.query(Catalog).filter(Catalog.id == catalog_id).first()
     if not c:
         raise HTTPException(404, "Catalog not found")
+    supplier_id = c.supplier_id
+
     # Delete associated price records first (foreign key constraint)
     db.query(ProductPrice).filter(ProductPrice.catalog_id == catalog_id).delete()
+
+    # Delete orphaned products (products under this supplier with no remaining prices)
+    orphaned = (
+        db.query(Product)
+        .filter(Product.supplier_id == supplier_id)
+        .filter(~Product.prices.any())
+        .all()
+    )
+    for p in orphaned:
+        db.delete(p)
+
     # Delete file
     if c.file_path and os.path.exists(c.file_path):
         os.remove(c.file_path)
     db.delete(c)
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "orphans_removed": len(orphaned)}
