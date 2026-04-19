@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { getSuppliers, createSupplier, deleteSupplier, updateSupplier, uploadCatalog, getCatalogs, deleteCatalog, setSupplierReminderDays, type Supplier, type Catalog } from '../api'
-import { Truck, Plus, Trash2, Upload, FileText, Image, Pencil, Bell, Phone, Mail, MapPin, StickyNote, MessageCircle, X, Check, ChevronDown, ChevronUp } from 'lucide-react'
+import { getSuppliers, createSupplier, deleteSupplier, updateSupplier, uploadCatalog, getCatalogs, deleteCatalog, archiveCatalog, unarchiveCatalog, setSupplierReminderDays, type Supplier, type Catalog } from '../api'
+import { Truck, Plus, Trash2, Upload, FileText, Image, Pencil, Bell, Phone, Mail, MapPin, StickyNote, MessageCircle, X, Check, ChevronDown, ChevronUp, Archive, ArchiveRestore } from 'lucide-react'
 
 const DAY_LABELS = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳']
 
@@ -372,18 +372,44 @@ export default function Suppliers() {
 
               <div className="space-y-2">
                 {catalogs.map(c => (
-                  <div key={c.id} className="flex items-center justify-between p-3 border border-zigo-border rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <FileText size={16} className="text-zigo-muted"/>
-                      <div>
-                        <div className="text-sm font-medium text-zigo-text">{c.filename}</div>
+                  <div key={c.id} className={`flex items-center justify-between p-3 border rounded-lg transition-colors ${
+                    c.archived
+                      ? 'border-dashed border-zigo-border bg-zigo-bg/50 opacity-60'
+                      : 'border-zigo-border'
+                  }`}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      {c.archived
+                        ? <Archive size={16} className="text-zigo-muted shrink-0"/>
+                        : <FileText size={16} className="text-zigo-muted shrink-0"/>
+                      }
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-zigo-text truncate">{c.filename}</div>
                         <div className="text-xs text-zigo-muted">
                           {c.products_count} מוצרים · {new Date(c.uploaded_at).toLocaleDateString('he-IL')}
+                          {c.archived && <span className="mr-2 text-amber-500 font-medium">· ארכיון</span>}
                         </div>
                       </div>
                     </div>
-                    <button onClick={() => { deleteCatalog(c.id); loadCatalogs(selected.id) }}
-                      className="text-red-400 hover:text-red-600 p-1"><Trash2 size={16}/></button>
+                    <div className="flex items-center gap-1 shrink-0 mr-1">
+                      {c.archived ? (
+                        <button
+                          title="שחזר קטלוג"
+                          onClick={async () => { await unarchiveCatalog(c.id); loadCatalogs(selected.id) }}
+                          className="text-zigo-muted hover:text-zigo-green p-1 transition-colors"
+                        ><ArchiveRestore size={15}/></button>
+                      ) : (
+                        <button
+                          title="העבר לארכיון (שמור היסטוריית מחירים)"
+                          onClick={async () => { await archiveCatalog(c.id); loadCatalogs(selected.id) }}
+                          className="text-zigo-muted hover:text-amber-500 p-1 transition-colors"
+                        ><Archive size={15}/></button>
+                      )}
+                      <button
+                        title="מחיקה מלאה (כולל מוצרים ומחירים)"
+                        onClick={() => { deleteCatalog(c.id); loadCatalogs(selected.id) }}
+                        className="text-red-400 hover:text-red-600 p-1 transition-colors"
+                      ><Trash2 size={15}/></button>
+                    </div>
                   </div>
                 ))}
                 {catalogs.length === 0 && <p className="text-zigo-muted text-sm">אין קטלוגים עדיין</p>}

@@ -47,6 +47,7 @@ def list_catalogs(supplier_id: str | None = None, db: Session = Depends(get_db))
             "parsed": c.parsed,
             "products_count": c.products_count,
             "uploaded_at": c.uploaded_at.isoformat() if c.uploaded_at else None,
+            "archived": bool(c.archived),
         }
         for c in catalogs
     ]
@@ -154,6 +155,29 @@ async def upload_catalog(
         "products_found": len(parsed_products),
         "products_saved": saved,
     }
+
+
+@router.patch("/{catalog_id}/archive")
+def archive_catalog(catalog_id: str, db: Session = Depends(get_db)):
+    """Partial removal: mark catalog as archived (hidden from active view) but keep all
+    price records and products so price history comparisons remain intact."""
+    c = db.query(Catalog).filter(Catalog.id == catalog_id).first()
+    if not c:
+        raise HTTPException(404, "Catalog not found")
+    c.archived = True
+    db.commit()
+    return {"ok": True, "catalog_id": catalog_id, "archived": True}
+
+
+@router.patch("/{catalog_id}/unarchive")
+def unarchive_catalog(catalog_id: str, db: Session = Depends(get_db)):
+    """Restore an archived catalog to the active view."""
+    c = db.query(Catalog).filter(Catalog.id == catalog_id).first()
+    if not c:
+        raise HTTPException(404, "Catalog not found")
+    c.archived = False
+    db.commit()
+    return {"ok": True, "catalog_id": catalog_id, "archived": False}
 
 
 @router.delete("/{catalog_id}")
