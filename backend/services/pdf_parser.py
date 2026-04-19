@@ -400,9 +400,10 @@ def _is_valid_price(v) -> bool:
 
 def _find_price_col_excel(data_rows: list[list], num_cols: int) -> Optional[int]:
     """
-    Find the column that contains numeric prices.
-    Prefers columns where values are pure floats/ints in a reasonable price range.
-    Avoids columns that look like product codes or dates.
+    Find the column that contains numeric prices — ONLY if the column is
+    purely numeric (all non-empty values are valid prices, no text mixed in).
+    This prevents unit columns like '1 ק"ג' or '3 יח' from being mistaken for prices.
+    Returns None if no clearly numeric column is found.
     """
     best_col = None
     best_score = 0
@@ -411,18 +412,27 @@ def _find_price_col_excel(data_rows: list[list], num_cols: int) -> Optional[int]
         values = [row[col_idx] for row in data_rows if col_idx < len(row)]
         numeric_prices = 0
         total_non_empty = 0
+        has_text = False
+
         for v in values:
             if v is None or v == '':
                 continue
             total_non_empty += 1
+            if isinstance(v, str) and re.search(r'[א-ת]', v):
+                # Column has Hebrew text — not a price column
+                has_text = True
+                break
             if _is_valid_price(v):
                 numeric_prices += 1
 
-        if total_non_empty > 0:
-            score = numeric_prices / total_non_empty
-            if score > best_score and score > 0.5:
-                best_score = score
-                best_col = col_idx
+        if has_text or total_non_empty == 0:
+            continue
+
+        score = numeric_prices / total_non_empty
+        # Require >80% of values to be valid prices (stricter threshold)
+        if score > best_score and score >= 0.8:
+            best_score = score
+            best_col = col_idx
 
     return best_col
 
