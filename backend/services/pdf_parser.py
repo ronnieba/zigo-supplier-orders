@@ -388,8 +388,16 @@ def _clean_product_name(name: str, unit: Optional[str] = None) -> tuple[str, Opt
     if not extracted_unit and ',' in cleaned:
         parts = cleaned.rsplit(',', 1)
         suffix = parts[1].strip()
-        # Valid unit suffix: short, no digits, contains Hebrew
-        if len(suffix) <= 15 and not re.search(r'\d', suffix) and _is_hebrew(suffix):
+        # Valid unit suffix: short, no digits, contains Hebrew (e.g. "יח", "קרטון")
+        if len(suffix) <= 20 and not re.search(r'\d', suffix) and _is_hebrew(suffix):
+            cleaned = parts[0].strip()
+            extracted_unit = suffix
+        # Also handle weight/size suffix with digits: '4 ק"ג', '125 גרם', '0.5 ליטר'
+        elif re.match(
+            r'^\d+(?:[.,]\d+)?\s*'
+            r'(?:ק["\u05f4\u2019]?ג|גרם|מ["\u05f4\u2019]?ל|ליטר|יח["\u05f4\u2019]?|kg\b|gr\b|ml\b)',
+            suffix, re.IGNORECASE
+        ):
             cleaned = parts[0].strip()
             extracted_unit = suffix
 
@@ -427,12 +435,54 @@ def _is_valid_price(v) -> bool:
     return False
 
 
+# Pattern for weight/size units (Hebrew + common English)
+_WEIGHT_UNIT_RE = re.compile(
+    r'(\d+(?:[.,]\d+)?)\s*'
+    r'(?:ק["\u05f4\u2019]?ג|גרם|מ["\u05f4\u2019]?ל|ליטר|יח["\u05f4\u2019]?|kg\b|gr\b|ml\b)',
+    re.IGNORECASE,
+)
+
+
+def _col_values_are_weights(col_idx: int, data_rows: list[list], num_cols: int) -> bool:
+    """
+    Return True if the numeric values in col_idx look like weights, not prices.
+    Logic: for each row, if the same number appears in another column's text
+    followed by a weight unit (e.g. value=4 and another cell contains '4 ק"ג'),
+    it is a weight column.  Requires ≥5 checked rows and >30% match rate.
+    """
+    matches = 0
+    checked = 0
+
+    for row in data_rows[:40]:
+        if col_idx >= len(row) or row[col_idx] is None:
+            continue
+        pval = row[col_idx]
+        if not isinstance(pval, (int, float)):
+            continue
+        checked += 1
+        pval_f = float(pval)
+
+        for other_idx in range(num_cols):
+            if other_idx == col_idx or other_idx >= len(row):
+                continue
+            cell = row[other_idx]
+            if not cell or not isinstance(cell, str):
+                continue
+            for m in _WEIGHT_UNIT_RE.finditer(cell):
+                w = float(m.group(1).replace(',', '.'))
+                if abs(w - pval_f) < 0.01:
+                    matches += 1
+                    break
+
+    return checked >= 5 and (matches / checked) > 0.3
+
+
 def _find_price_col_excel(data_rows: list[list], num_cols: int) -> Optional[int]:
     """
     Find the column that contains numeric prices — ONLY if the column is
-    purely numeric (all non-empty values are valid prices, no text mixed in).
-    This prevents unit columns like '1 ק"ג' or '3 יח' from being mistaken for prices.
-    Returns None if no clearly numeric column is found.
+    purely numeric (all non-empty values are valid prices, no text mixed in),
+    AND the values are not weights embedded in product names.
+    Returns None if no clearly numeric price column is found.
     """
     best_col = None
     best_score = 0
@@ -460,6 +510,9 @@ def _find_price_col_excel(data_rows: list[list], num_cols: int) -> Optional[int]
         score = numeric_prices / total_non_empty
         # Require >80% of values to be valid prices (stricter threshold)
         if score > best_score and score >= 0.8:
+            # Skip columns whose values are weights embedded in product names
+            if _col_values_are_weights(col_idx, data_rows, num_cols):
+                continue
             best_score = score
             best_col = col_idx
 
