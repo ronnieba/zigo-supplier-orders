@@ -5,7 +5,7 @@ from typing import Optional
 import json
 
 from database import get_db
-from models import Supplier, SupplierBudget, Catalog, Product, ProductPrice, Order, OrderItem, OrderTemplate, OrderTemplateItem
+from models import Supplier, SupplierBudget, Catalog, Product, ProductPrice, Order, OrderItem, OrderTemplate, OrderTemplateItem, Inventory
 
 router = APIRouter(prefix="/suppliers", tags=["suppliers"])
 
@@ -81,10 +81,14 @@ def delete_supplier(supplier_id: str, db: Session = Depends(get_db)):
         db.query(OrderTemplateItem).filter(OrderTemplateItem.template_id.in_(tmpl_ids)).delete(synchronize_session=False)
     db.query(OrderTemplate).filter(OrderTemplate.supplier_id == supplier_id).delete(synchronize_session=False)
 
-    # 3. Product prices → products
+    # 3. Product prices + inventory + dangling order/template items → products
     product_ids = [p.id for p in db.query(Product.id).filter(Product.supplier_id == supplier_id)]
     if product_ids:
         db.query(ProductPrice).filter(ProductPrice.product_id.in_(product_ids)).delete(synchronize_session=False)
+        db.query(Inventory).filter(Inventory.product_id.in_(product_ids)).delete(synchronize_session=False)
+        # Remove any cross-supplier order/template items referencing these products
+        db.query(OrderItem).filter(OrderItem.product_id.in_(product_ids)).delete(synchronize_session=False)
+        db.query(OrderTemplateItem).filter(OrderTemplateItem.product_id.in_(product_ids)).delete(synchronize_session=False)
     db.query(Product).filter(Product.supplier_id == supplier_id).delete(synchronize_session=False)
 
     # 4. Catalog prices → catalogs
