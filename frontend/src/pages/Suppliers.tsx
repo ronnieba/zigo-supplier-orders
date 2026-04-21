@@ -229,6 +229,7 @@ export default function Suppliers() {
   }
 
   async function loadCatalogs(id: string) {
+    setCatalogs([])
     setCatalogs(await getCatalogs(id))
   }
 
