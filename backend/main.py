@@ -133,19 +133,42 @@ def health():
 # ─── Serve React SPA ───────────────────────────────────────────────────────────
 FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
 
+_NO_CACHE_HEADERS = {
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+_IMMUTABLE_HEADERS = {
+    # Vite outputs assets with content-hash filenames — safe to cache forever
+    "Cache-Control": "public, max-age=31536000, immutable",
+}
+
+
+def _html_response(path: str) -> FileResponse:
+    """Serve index.html with headers that prevent browser/CDN caching."""
+    return FileResponse(path, headers=_NO_CACHE_HEADERS)
+
+
 if os.path.exists(FRONTEND_DIST):
-    app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIST, "assets")), name="assets")
+    # Hashed assets (JS/CSS/images) — long-lived cache
+    app.mount(
+        "/assets",
+        StaticFiles(directory=os.path.join(FRONTEND_DIST, "assets")),
+        name="assets",
+    )
 
     @app.get("/")
     def serve_root():
-        return FileResponse(os.path.join(FRONTEND_DIST, "index.html"))
+        return _html_response(os.path.join(FRONTEND_DIST, "index.html"))
 
     @app.get("/{full_path:path}")
     def serve_spa(full_path: str):
         file_path = os.path.join(FRONTEND_DIST, full_path)
         if os.path.isfile(file_path):
-            return FileResponse(file_path)
-        return FileResponse(os.path.join(FRONTEND_DIST, "index.html"))
+            # Non-HTML static files (favicon, manifest, etc.) — short cache
+            return FileResponse(file_path, headers={"Cache-Control": "public, max-age=3600"})
+        # All unknown paths → SPA shell, always fresh
+        return _html_response(os.path.join(FRONTEND_DIST, "index.html"))
 else:
     @app.get("/")
     def root():
