@@ -68,15 +68,20 @@ export default function NewOrder() {
           const raw = localStorage.getItem(DRAFT_KEY)
           if (raw) {
             const draft = JSON.parse(raw)
-            draftLoadedRef.current = true
-            pendingCartRef.current = draft.cart || []
-            setWeekStart(draft.weekStart || getWeekStart())
-            setNotes(draft.notes || '')
-            setSupplierId(draft.supplierId || (s.length > 0 ? s[0].id : ''))
-            setDraftRestored(true)
-            return
+            // Only restore if there are actual cart items — skip empty drafts
+            if (draft.cart && draft.cart.length > 0) {
+              draftLoadedRef.current = true
+              pendingCartRef.current = draft.cart
+              setWeekStart(draft.weekStart || getWeekStart())
+              setNotes(draft.notes || '')
+              setSupplierId(draft.supplierId || (s.length > 0 ? s[0].id : ''))
+              setDraftRestored(true)
+              return
+            } else {
+              localStorage.removeItem(DRAFT_KEY)  // clean up empty draft
+            }
           }
-        } catch { /* ignore corrupt draft */ }
+        } catch { localStorage.removeItem(DRAFT_KEY) }
       }
       if (s.length > 0) setSupplierId(s[0].id)
     })
@@ -133,6 +138,10 @@ export default function NewOrder() {
   // 4. Persist draft to localStorage (new order only, not edit mode)
   useEffect(() => {
     if (editOrderId || !supplierId) return
+    // Skip saving while pendingCartRef is set — means we are mid-restore and
+    // cart is still [] (products haven't loaded yet). Saving now would overwrite
+    // the good draft with an empty cart.
+    if (pendingCartRef.current !== null) return
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify({ supplierId, weekStart, notes, cart }))
     } catch { /* ignore quota errors */ }
