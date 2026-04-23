@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getSuppliers, getOrders, deleteOrder, confirmOrder, exportOrdersUrl, type Supplier, type Order } from '../api'
-import { History, ChevronDown, ChevronUp, Trash2, CheckCircle, MessageCircle, Printer, Search, Download, X, Phone } from 'lucide-react'
+import { History, ChevronDown, ChevronUp, Trash2, CheckCircle, MessageCircle, Printer, Search, Download, X, Phone, Pencil } from 'lucide-react'
 
 export default function OrderHistory() {
   const navigate = useNavigate()
@@ -215,6 +215,10 @@ export default function OrderHistory() {
                         <input type="checkbox" checked={hidePrices} onChange={e => setHidePrices(e.target.checked)} className="rounded"/>
                         הסתר מחירים בייצוא
                       </label>
+                      <button onClick={() => navigate(`/order/new?edit=${order.id}`)}
+                        className="flex items-center gap-1 bg-zigo-card text-zigo-text border border-zigo-border px-3 py-1.5 rounded-lg text-sm hover:bg-zigo-bg transition">
+                        <Pencil size={14}/> ערוך
+                      </button>
                       {order.status === 'draft' && (
                         <button onClick={() => confirm_(order.id)}
                           className="flex items-center gap-1 bg-zigo-green text-white px-3 py-1.5 rounded-lg text-sm hover:opacity-90 transition">

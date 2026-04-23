@@ -25,6 +25,13 @@ class OrderCreate(BaseModel):
     items: list[OrderItemIn]
 
 
+class OrderUpdate(BaseModel):
+    week_start: Optional[str] = None
+    notes: Optional[str] = None
+    status: Optional[str] = None
+    items: Optional[list[OrderItemIn]] = None
+
+
 def order_to_dict(order: Order) -> dict:
     return {
         "id": order.id,
@@ -169,6 +176,41 @@ def get_order(order_id: str, db: Session = Depends(get_db)):
     ).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(404, "Order not found")
+    return order_to_dict(order)
+
+
+@router.put("/{order_id}")
+def update_order(order_id: str, body: OrderUpdate, db: Session = Depends(get_db)):
+    order = db.query(Order).options(
+        joinedload(Order.items)
+    ).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(404, "Order not found")
+
+    if body.week_start is not None:
+        order.week_start = body.week_start
+    if body.notes is not None:
+        order.notes = body.notes
+    if body.status is not None:
+        order.status = body.status
+
+    if body.items is not None:
+        # Delete existing items, then insert new ones
+        for item in list(order.items):
+            db.delete(item)
+        db.flush()
+        for item in body.items:
+            db.add(OrderItem(
+                order_id=order.id,
+                product_id=item.product_id,
+                quantity=item.quantity,
+                unit_price=item.unit_price,
+            ))
+
+    db.commit()
+    order = db.query(Order).options(
+        joinedload(Order.items).joinedload(OrderItem.product)
+    ).filter(Order.id == order_id).first()
     return order_to_dict(order)
 
 
