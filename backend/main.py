@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from database import engine, Base
 import models
@@ -130,23 +130,35 @@ def health():
     return {"status": "ok", "message": "ZIGO Supplier Orders API v2"}
 
 
+@app.get("/api/version")
+def version():
+    """Returns the current server build hash so the SPA can detect stale deploys."""
+    return {"version": _BUILD_HASH}
+
+
 # ─── Serve React SPA ───────────────────────────────────────────────────────────
 FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
+
+# Current deploy hash — Render sets RENDER_GIT_COMMIT automatically
+_BUILD_HASH = (os.environ.get("RENDER_GIT_COMMIT") or "dev")[:7]
 
 _NO_CACHE_HEADERS = {
     "Cache-Control": "no-cache, no-store, must-revalidate",
     "Pragma": "no-cache",
     "Expires": "0",
 }
-_IMMUTABLE_HEADERS = {
-    # Vite outputs assets with content-hash filenames — safe to cache forever
-    "Cache-Control": "public, max-age=31536000, immutable",
-}
 
 
-def _html_response(path: str) -> FileResponse:
-    """Serve index.html with headers that prevent browser/CDN caching."""
-    return FileResponse(path, headers=_NO_CACHE_HEADERS)
+def _html_response(path: str) -> Response:
+    """Serve index.html as a plain Response (no ETag / Last-Modified).
+
+    Using Response instead of FileResponse removes the automatic ETag
+    that FastAPI/Starlette adds, which could cause browsers to serve a
+    stale cached copy even when Cache-Control: no-store is set.
+    """
+    with open(path, "rb") as fh:
+        content = fh.read()
+    return Response(content=content, media_type="text/html", headers=_NO_CACHE_HEADERS)
 
 
 if os.path.exists(FRONTEND_DIST):
