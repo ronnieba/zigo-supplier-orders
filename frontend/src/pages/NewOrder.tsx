@@ -1,17 +1,19 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  getSuppliers, getProducts, getSuggestions, createOrder, getTemplates, createTemplate, deleteTemplate,
+  getSuppliers, getProducts, getSuggestions, createOrder, updateOrder, getOrder, getTemplates, createTemplate, deleteTemplate,
   compareProducts,
   type Supplier, type Product, type Suggestion, type OrderTemplate, type CompareResult
 } from '../api'
-import { ShoppingCart, Plus, Minus, Search, CheckCircle, AlertTriangle, BookmarkPlus, BookOpen, Trash2, X } from 'lucide-react'
+import { ShoppingCart, Plus, Minus, Search, CheckCircle, AlertTriangle, BookmarkPlus, BookOpen, Trash2, X, Pencil } from 'lucide-react'
 
 interface CartItem {
   product: Product
   quantity: number
   unit_price: number
 }
+
+const DRAFT_KEY = 'zigo-new-order-draft'
 
 function getWeekStart(): string {
   const d = new Date()
@@ -23,6 +25,13 @@ function getWeekStart(): string {
 
 export default function NewOrder() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const editOrderId = searchParams.get('edit')
+
+  // Refs for async cart restoration
+  const pendingCartRef = useRef<CartItem[] | null>(null)
+  const draftLoadedRef = useRef(false)
+
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [supplierId, setSupplierId] = useState('')
   const [products, setProducts] = useState<Product[]>([])
@@ -34,6 +43,7 @@ export default function NewOrder() {
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
+  const [draftRestored, setDraftRestored] = useState(false)
 
   // Filter state
   const [globalSearch, setGlobalSearch] = useState(false)
@@ -47,20 +57,86 @@ export default function NewOrder() {
   const [showTemplates, setShowTemplates] = useState(false)
   const [savingTemplate, setSavingTemplate] = useState(false)
 
+  // 1. Load suppliers — restore draft or set first supplier
   useEffect(() => {
     getSuppliers().then(s => {
       setSuppliers(s)
+      if (editOrderId) return  // edit mode: supplierId is set by order-load effect
+
+      if (!draftLoadedRef.current) {
+        try {
+          const raw = localStorage.getItem(DRAFT_KEY)
+          if (raw) {
+            const draft = JSON.parse(raw)
+            draftLoadedRef.current = true
+            pendingCartRef.current = draft.cart || []
+            setWeekStart(draft.weekStart || getWeekStart())
+            setNotes(draft.notes || '')
+            setSupplierId(draft.supplierId || (s.length > 0 ? s[0].id : ''))
+            setDraftRestored(true)
+            return
+          }
+        } catch { /* ignore corrupt draft */ }
+      }
       if (s.length > 0) setSupplierId(s[0].id)
     })
-  }, [])
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 2. Load existing order for edit mode
+  useEffect(() => {
+    if (!editOrderId) return
+    getOrder(editOrderId).then(order => {
+      setWeekStart(order.week_start)
+      setNotes(order.notes || '')
+      // Store items to be hydrated after products load
+      pendingCartRef.current = order.items.map(item => ({
+        product: {
+          id: item.product_id,
+          supplier_id: order.supplier_id,
+          name: item.product_name,
+          unit: item.product_unit,
+          latest_price: item.unit_price,
+        } as Product,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+      }))
+      setSupplierId(order.supplier_id)
+    })
+  }, [editOrderId])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 3. When supplierId changes: load products, then restore pending cart if any
   useEffect(() => {
     if (!supplierId) return
-    getProducts({ supplier_id: supplierId }).then(setProducts)
+    getProducts({ supplier_id: supplierId }).then(prods => {
+      setProducts(prods)
+      if (pendingCartRef.current !== null) {
+        const pending = pendingCartRef.current
+        pendingCartRef.current = null
+        if (editOrderId) {
+          // Map items to full product objects from freshly-loaded products
+          const prodMap = Object.fromEntries(prods.map(p => [p.id, p]))
+          setCart(pending.map(item => {
+            const full = prodMap[item.product.id]
+            return full ? { ...item, product: full } : item
+          }))
+        } else {
+          setCart(pending)
+        }
+      } else {
+        setCart([])
+      }
+    })
     getSuggestions(supplierId).then(setSuggestions)
     getTemplates(supplierId).then(setTemplates)
-    setCart([])
-  }, [supplierId])
+  }, [supplierId])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 4. Persist draft to localStorage (new order only, not edit mode)
+  useEffect(() => {
+    if (editOrderId || !supplierId) return
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ supplierId, weekStart, notes, cart }))
+    } catch { /* ignore quota errors */ }
+  }, [supplierId, weekStart, notes, cart, editOrderId])
 
   useEffect(() => {
     if (globalSearch && search.trim().length >= 2) {
@@ -71,7 +147,7 @@ export default function NewOrder() {
   }, [globalSearch, search])
 
   const filtered = (() => {
-    if (globalSearch && search.trim().length >= 2) return [] // shown separately
+    if (globalSearch && search.trim().length >= 2) return []
     let list = products.filter(p =>
       !search || p.name.toLowerCase().includes(search.toLowerCase())
     )
@@ -161,16 +237,29 @@ export default function NewOrder() {
     if (cart.length === 0) return
     setSaving(true)
     try {
-      await createOrder({
-        supplier_id: supplierId,
-        week_start: weekStart,
-        notes,
-        items: cart.map(i => ({
-          product_id: i.product.id,
-          quantity: i.quantity,
-          unit_price: i.unit_price,
-        })),
-      })
+      if (editOrderId) {
+        await updateOrder(editOrderId, {
+          week_start: weekStart,
+          notes,
+          items: cart.map(i => ({
+            product_id: i.product.id,
+            quantity: i.quantity,
+            unit_price: i.unit_price,
+          })),
+        })
+      } else {
+        await createOrder({
+          supplier_id: supplierId,
+          week_start: weekStart,
+          notes,
+          items: cart.map(i => ({
+            product_id: i.product.id,
+            quantity: i.quantity,
+            unit_price: i.unit_price,
+          })),
+        })
+        localStorage.removeItem(DRAFT_KEY)
+      }
       setDone(true)
       setTimeout(() => navigate('/orders'), 1500)
     } finally {
@@ -181,18 +270,38 @@ export default function NewOrder() {
   if (done) return (
     <div className="flex flex-col items-center justify-center py-20 gap-4">
       <CheckCircle size={64} className="text-zigo-green"/>
-      <p className="text-xl font-semibold text-zigo-green">ההזמנה נשמרה!</p>
+      <p className="text-xl font-semibold text-zigo-green">
+        {editOrderId ? 'ההזמנה עודכנה!' : 'ההזמנה נשמרה!'}
+      </p>
     </div>
   )
 
   return (
     <div className="space-y-4">
-      <h2 className="text-2xl font-bold flex items-center gap-2 text-zigo-text"><ShoppingCart size={24}/>הזמנה חדשה</h2>
+      <h2 className="text-2xl font-bold flex items-center gap-2 text-zigo-text">
+        {editOrderId ? <Pencil size={24}/> : <ShoppingCart size={24}/>}
+        {editOrderId ? 'עריכת הזמנה' : 'הזמנה חדשה'}
+      </h2>
+
+      {/* Draft restored banner */}
+      {draftRestored && !editOrderId && (
+        <div className="flex items-center justify-between bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-xl px-4 py-2.5 text-sm text-amber-700 dark:text-amber-300">
+          <span>✏️ טיוטה שוחזרה — המשך מהמקום שעצרת</span>
+          <button onClick={() => {
+            localStorage.removeItem(DRAFT_KEY)
+            setDraftRestored(false)
+            setCart([])
+            setNotes('')
+            setWeekStart(getWeekStart())
+          }} className="text-xs underline hover:no-underline">נקה טיוטה</button>
+        </div>
+      )}
 
       {/* Header controls */}
       <div className="bg-zigo-card rounded-xl shadow p-4 flex flex-wrap gap-3 border border-zigo-border">
         <select value={supplierId} onChange={e => setSupplierId(e.target.value)}
-          className="border border-zigo-border rounded-lg px-3 py-2 text-sm flex-1 min-w-32 bg-zigo-bg text-zigo-text">
+          disabled={!!editOrderId}
+          className="border border-zigo-border rounded-lg px-3 py-2 text-sm flex-1 min-w-32 bg-zigo-bg text-zigo-text disabled:opacity-60">
           {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
         <div>
@@ -425,8 +534,14 @@ export default function NewOrder() {
             onClick={submit}
             disabled={cart.length === 0 || saving}
             className="w-full bg-zigo-green text-white rounded-xl py-3 font-bold hover:opacity-90 disabled:opacity-40 transition">
-            {saving ? 'שומר...' : 'שמור הזמנה'}
+            {saving ? 'שומר...' : editOrderId ? 'עדכן הזמנה' : 'שמור הזמנה'}
           </button>
+          {editOrderId && (
+            <button onClick={() => navigate('/orders')}
+              className="w-full border border-zigo-border text-zigo-muted rounded-xl py-2 text-sm hover:bg-zigo-bg transition">
+              ביטול
+            </button>
+          )}
         </div>
       </div>
     </div>

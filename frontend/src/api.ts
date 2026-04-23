@@ -143,6 +143,9 @@ export const getOrder = (id: string) => req<Order>(`/orders/${id}`)
 export const createOrder = (data: OrderCreate) =>
   req<Order>('/orders/', { method: 'POST', body: JSON.stringify(data) })
 
+export const updateOrder = (id: string, data: { week_start?: string; notes?: string; status?: string; items?: { product_id: string; quantity: number; unit_price: number }[] }) =>
+  req<Order>(`/orders/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+
 export const confirmOrder = (id: string) =>
   req(`/orders/${id}/confirm`, { method: 'PATCH' })
 
