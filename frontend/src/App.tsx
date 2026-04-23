@@ -53,6 +53,9 @@ function loadReminder(): ReminderSettings {
   catch { return DEFAULT_REMINDER }
 }
 
+// Injected by vite.config.ts at build time; 'dev' in local dev
+declare const __BUILD_HASH__: string
+
 export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [isDark, setIsDark] = useState(() => localStorage.getItem('zigo-theme') !== 'light')
@@ -64,6 +67,24 @@ export default function App() {
   const [cartCount, setCartCount] = useState(() => getCart().length)
 
   const authed = authMode === 'open' || !!currentUser
+
+  // ── Auto-reload when a new deploy is detected ──────────────────────────────
+  useEffect(() => {
+    if (__BUILD_HASH__ === 'dev') return  // skip in local dev
+    fetch('/api/version')
+      .then(r => r.json())
+      .then(({ version }: { version: string }) => {
+        if (version && version !== 'dev' && version !== __BUILD_HASH__) {
+          // Guard against infinite reload: only reload once per new version
+          const key = `zigo-reloaded-${version}`
+          if (!sessionStorage.getItem(key)) {
+            sessionStorage.setItem(key, '1')
+            window.location.reload()
+          }
+        }
+      })
+      .catch(() => {/* ignore network errors */})
+  }, [])
 
   // ── Cart badge ─────────────────────────────────────────────────────────────
   useEffect(() => {
