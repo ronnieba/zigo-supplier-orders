@@ -7,6 +7,7 @@ export default function OrderHistory() {
   const navigate = useNavigate()
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [supplierId, setSupplierId] = useState('')
+  const [suppliersReady, setSuppliersReady] = useState(false)
   const [productSearch, setProductSearch] = useState('')
   const [orders, setOrders] = useState<Order[]>([])
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -17,11 +18,15 @@ export default function OrderHistory() {
   useEffect(() => {
     getSuppliers().then(s => {
       setSuppliers(s)
+      // Default to first supplier but allow "all" (empty string) to work too
       if (s.length > 0) setSupplierId(s[0].id)
+      setSuppliersReady(true)
     })
   }, [])
 
-  useEffect(() => { if (supplierId) load() }, [supplierId])
+  // Reload orders whenever supplierId changes — but wait until suppliers are fetched
+  // (avoids a spurious load on first render when supplierId='' and suppliers are empty)
+  useEffect(() => { if (suppliersReady) load() }, [supplierId, suppliersReady])
 
   async function load() {
     setLoading(true)
