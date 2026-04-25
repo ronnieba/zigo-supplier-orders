@@ -55,11 +55,36 @@ export default function OrderHistory() {
     return digits
   }
 
+  /** Parse an ISO date string (YYYY-MM-DD) as LOCAL midnight to avoid UTC-offset bugs. */
+  function parseLocalDate(iso: string): Date {
+    const [y, m, d] = iso.split('-').map(Number)
+    return new Date(y, m - 1, d)
+  }
+
+  /** Return ISO week number (1-53) for a given date. */
+  function isoWeekNumber(date: Date): number {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+    const dow = d.getUTCDay() || 7          // Sun=0 → 7, Mon=1..Sat=6
+    d.setUTCDate(d.getUTCDate() + 4 - dow)  // shift to nearest Thursday
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+    return Math.ceil(((d.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7)
+  }
+
+  /** Format "2026-04-21" → "שבוע 17 · 21/04/2026" */
+  function formatWeekLabel(iso: string): string {
+    const date = parseLocalDate(iso)
+    const week = isoWeekNumber(date)
+    const dd   = String(date.getDate()).padStart(2, '0')
+    const mm   = String(date.getMonth() + 1).padStart(2, '0')
+    const yyyy = date.getFullYear()
+    return `שבוע ${week} · ${dd}/${mm}/${yyyy}`
+  }
+
   function buildWhatsAppText(order: Order): string {
     const supplier = suppliers.find(s => s.id === order.supplier_id)
     const supplierName = supplier?.name || 'ספק'
     let text = `*הזמנה — ${supplierName}*\n`
-    text += `שבוע: ${order.week_start}\n\n`
+    text += `${formatWeekLabel(order.week_start)}\n\n`
     for (const item of order.items) {
       if (hidePrices) {
         text += `• ${item.product_name}  ×${item.quantity}${item.product_unit ? ' ' + item.product_unit : ''}\n`
@@ -168,7 +193,7 @@ export default function OrderHistory() {
                     <div>
                       <div className="font-semibold text-zigo-text">
                         {supplierName && <span className="text-zigo-muted text-sm ml-2">{supplierName} ·</span>}
-                        שבוע {order.week_start}
+                        {formatWeekLabel(order.week_start)}
                       </div>
                       <div className="text-sm text-zigo-muted">{order.items.length} פריטים</div>
                     </div>
