@@ -19,8 +19,13 @@ function getWeekStart(): string {
   const d = new Date()
   const day = d.getDay()
   const diff = d.getDate() - day + (day === 0 ? -6 : 1)
-  const mon = new Date(d.setDate(diff))
-  return mon.toISOString().split('T')[0]
+  d.setDate(diff)
+  // Use LOCAL date parts — toISOString() returns UTC and gives the wrong
+  // date in Israel (UTC+3) between midnight and 03:00 AM local time.
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dd}`
 }
 
 export default function NewOrder() {
