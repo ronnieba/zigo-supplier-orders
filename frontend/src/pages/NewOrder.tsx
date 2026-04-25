@@ -19,11 +19,12 @@ function getWeekStart(): string {
   const now = new Date()
   // dayOfWeek: 0=Sun, 1=Mon … 6=Sat  (local time — NOT UTC)
   const dayOfWeek = now.getDay()
-  // How many days since the most recent Monday?
-  // Mon=0, Tue=1, Wed=2, Thu=3, Fri=4, Sat=5, Sun=6
-  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+  // Days until the NEXT Monday (0 if today IS Monday).
+  // On Sat/Sun/Tue-Fri we jump forward to the upcoming Monday so the default
+  // order week is always in the future, not the past.
+  const daysUntilMonday = dayOfWeek === 1 ? 0 : (8 - dayOfWeek) % 7
   const monday = new Date(now)
-  monday.setDate(now.getDate() - daysSinceMonday)
+  monday.setDate(now.getDate() + daysUntilMonday)
   monday.setHours(12, 0, 0, 0)   // noon → immune to DST and UTC-offset edge cases
   const y = monday.getFullYear()
   const m = String(monday.getMonth() + 1).padStart(2, '0')
