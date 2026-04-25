@@ -16,16 +16,19 @@ interface CartItem {
 const DRAFT_KEY = 'zigo-new-order-draft'
 
 function getWeekStart(): string {
-  const d = new Date()
-  const day = d.getDay()
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1)
-  d.setDate(diff)
-  // Use LOCAL date parts — toISOString() returns UTC and gives the wrong
-  // date in Israel (UTC+3) between midnight and 03:00 AM local time.
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${dd}`
+  const now = new Date()
+  // dayOfWeek: 0=Sun, 1=Mon … 6=Sat  (local time — NOT UTC)
+  const dayOfWeek = now.getDay()
+  // How many days since the most recent Monday?
+  // Mon=0, Tue=1, Wed=2, Thu=3, Fri=4, Sat=5, Sun=6
+  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+  const monday = new Date(now)
+  monday.setDate(now.getDate() - daysSinceMonday)
+  monday.setHours(12, 0, 0, 0)   // noon → immune to DST and UTC-offset edge cases
+  const y = monday.getFullYear()
+  const m = String(monday.getMonth() + 1).padStart(2, '0')
+  const d = String(monday.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
 
 export default function NewOrder() {
@@ -77,7 +80,7 @@ export default function NewOrder() {
             if (draft.cart && draft.cart.length > 0) {
               draftLoadedRef.current = true
               pendingCartRef.current = draft.cart
-              setWeekStart(draft.weekStart || getWeekStart())
+              setWeekStart(getWeekStart())  // always use current Monday — never restore a stale draft date
               setNotes(draft.notes || '')
               setSupplierId(draft.supplierId || (s.length > 0 ? s[0].id : ''))
               setDraftRestored(true)
